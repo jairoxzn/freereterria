@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "prisma:generate": "prisma generate",
     "prisma:seed": "node prisma/seed.js",
-    "prisma:migrate": "prisma db push"
+    "prisma:migrate": "prisma db push",
+    "vercel-build": "prisma generate"
   },
   "keywords": [],
   "author": "",

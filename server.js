@@ -583,10 +583,15 @@ app.use((err, req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-  logger.info(`Servidor Monolítico Freereterria iniciado en http://localhost:${PORT}`);
-  console.log(`\x1b[36m%s\x1b[0m`, `======================================================`);
-  console.log(`\x1b[36m%s\x1b[0m`, `  SISTEMA MONOLÍTICO FREERETERRIA CORRIENDO`);
-  console.log(`\x1b[36m%s\x1b[0m`, `  Accede localmente en: http://localhost:${PORT}`);
-  console.log(`\x1b[36m%s\x1b[0m`, `======================================================`);
-});
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    logger.info(`Servidor Monolítico Freereterria iniciado en http://localhost:${PORT}`);
+    console.log(`\x1b[36m%s\x1b[0m`, `======================================================`);
+    console.log(`\x1b[36m%s\x1b[0m`, `  SISTEMA MONOLÍTICO FREERETERRIA CORRIENDO`);
+    console.log(`\x1b[36m%s\x1b[0m`, `  Accede localmente en: http://localhost:${PORT}`);
+    console.log(`\x1b[36m%s\x1b[0m`, `======================================================`);
+  });
+}
+
+module.exports = app;
+
