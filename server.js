@@ -21,11 +21,19 @@ const prisma = new PrismaClient({
   ],
 });
 
-// Logger del sistema (consola y archivo local)
+// Logger del sistema (consola y archivo local con degradación segura para Vercel)
 const logDir = path.join(__dirname, 'logs');
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir);
+let canWriteLogs = true;
+
+try {
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir);
+  }
+} catch (e) {
+  canWriteLogs = false;
+  console.log("Sistema de archivos de sólo lectura (Vercel). Escribiendo logs únicamente en consola.");
 }
+
 const logFile = path.join(logDir, 'system.log');
 
 const logger = {
@@ -33,24 +41,44 @@ const logger = {
     const ts = new Date().toISOString();
     const formatted = `[${ts}] [INFO]: ${message}\n`;
     console.log(`\x1b[32m%s\x1b[0m`, formatted.trim());
-    fs.appendFileSync(logFile, formatted);
+    if (canWriteLogs) {
+      try {
+        fs.appendFileSync(logFile, formatted);
+      } catch (e) {}
+    }
   },
   warn: (message) => {
     const ts = new Date().toISOString();
     const formatted = `[${ts}] [WARN]: ${message}\n`;
     console.log(`\x1b[33m%s\x1b[0m`, formatted.trim());
-    fs.appendFileSync(logFile, formatted);
+    if (canWriteLogs) {
+      try {
+        fs.appendFileSync(logFile, formatted);
+      } catch (e) {}
+    }
   },
   error: (message, err) => {
     const ts = new Date().toISOString();
     const errDetails = err ? ` - Details: ${err.message}\n${err.stack}` : '';
     const formatted = `[${ts}] [ERROR]: ${message}${errDetails}\n`;
     console.error(`\x1b[31m%s\x1b[0m`, formatted.trim());
-    fs.appendFileSync(logFile, formatted);
+    if (canWriteLogs) {
+      try {
+        fs.appendFileSync(logFile, formatted);
+      } catch (e) {}
+    }
   },
   getLogs: () => {
-    if (!fs.existsSync(logFile)) return [];
-    return fs.readFileSync(logFile, 'utf8').trim().split('\n').filter(Boolean);
+    if (!canWriteLogs || !fs.existsSync(logFile)) {
+      return [
+        `[${new Date().toISOString()}] [INFO]: Servidor en la nube activo. logs de consola de Vercel disponibles en tiempo real.`
+      ];
+    }
+    try {
+      return fs.readFileSync(logFile, 'utf8').trim().split('\n').filter(Boolean);
+    } catch (e) {
+      return [];
+    }
   }
 };
 
