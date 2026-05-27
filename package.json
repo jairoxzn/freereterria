@@ -1,11 +1,11 @@
 {
-  "name": "freereterria-backend",
+  "name": "freereterria-monolith",
   "version": "1.0.0",
-  "description": "Backend API for Freereterria Inventory and POS System",
-  "main": "src/index.js",
+  "description": "Sistema Profesional Unificado de Inventario y POS para Ferretería - Monolito Único",
+  "main": "server.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node server.js",
+    "dev": "nodemon server.js",
     "prisma:generate": "prisma generate",
     "prisma:seed": "node prisma/seed.js",
     "prisma:migrate": "prisma db push"

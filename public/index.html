@@ -1,0 +1,2185 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Freereterria: Sistema web profesional e inteligente de inventario, Kardex, compras y Punto de Venta (POS)." />
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              ferre: {
+                blue: {
+                  DEFAULT: '#1e3a8a',
+                  dark: '#172554',
+                  light: '#3b82f6',
+                  hover: '#1d4ed8',
+                },
+                yellow: {
+                  DEFAULT: '#eab308',
+                  dark: '#ca8a04',
+                  light: '#fde047',
+                  hover: '#d97706',
+                },
+                dark: {
+                  DEFAULT: '#1f2937',
+                  bg: '#111827',
+                  card: '#1f2937',
+                  border: '#374151',
+                },
+                gray: {
+                  DEFAULT: '#4b5563',
+                  light: '#f3f4f6',
+                  border: '#e5e7eb',
+                }
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- Lucide Icons Web Script -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- ApexCharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <!-- React, ReactDOM, Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <title>Freereterria - Sistema Profesional de Inventario & POS</title>
+    
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        transition: background-color 0.2s, color 0.2s;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+      }
+      .dark .glass-card {
+        background: rgba(31, 41, 55, 0.9);
+        border: 1px solid rgba(55, 65, 81, 0.5);
+        box-shadow: none;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 9999px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #374151;
+      }
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #print-receipt-ticket, #print-receipt-ticket * {
+          visibility: visible;
+        }
+        #print-receipt-ticket {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+    <div id="root"></div>
+
+    <!-- CÓDIGO FRONTEND REACT SPA -->
+    <script type="text/babel">
+      const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
+
+      // 1. COMPONENTE AUXILIAR PARA RENDERIZAR ICONOS LUCIDE DINÁMICAMENTE
+      function Icon({ name, className = "w-5 h-5", strokeWidth = 2 }) {
+        useEffect(() => {
+          if (window.lucide) {
+            window.lucide.createIcons();
+          }
+        }, [name]);
+        return <i data-lucide={name} className={className} style={{ strokeWidth }}></i>;
+      }
+
+      // 2. CONTEXTO GLOBAL DE ALERTAS TOAST
+      const ToastContext = createContext();
+      function ToastProvider({ children }) {
+        const [toasts, setToasts] = useState([]);
+        const showToast = useCallback((message, type = 'success') => {
+          const id = Date.now();
+          setToasts(prev => [...prev, { id, message, type }]);
+          setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+          }, 4000);
+        }, []);
+
+        return (
+          <ToastContext.Provider value={{ showToast }}>
+            {children}
+            <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full">
+              {toasts.map(t => (
+                <div
+                  key={t.id}
+                  className={`flex items-center justify-between p-4 rounded-xl shadow-xl border animate-bounce-short ${
+                    t.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-900/40' :
+                    t.type === 'error' ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-900/40' :
+                    t.type === 'warning' ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-900/40' :
+                    'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/80 dark:text-blue-300 dark:border-blue-900/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon name={t.type === 'success' ? 'check-circle' : t.type === 'error' ? 'alert-circle' : t.type === 'warning' ? 'alert-triangle' : 'info'} className="w-5 h-5 shrink-0" />
+                    <span className="text-sm font-semibold">{t.message}</span>
+                  </div>
+                  <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} className="ml-3 p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                    <Icon name="x" className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </ToastContext.Provider>
+        );
+      }
+      const useToast = () => useContext(ToastContext);
+
+      // 3. CONTEXTO GLOBAL DE MODO OSCURO
+      const ThemeContext = createContext();
+      function ThemeProvider({ children }) {
+        const [isDark, setIsDark] = useState(() => {
+          const saved = localStorage.getItem('ferre_dark');
+          return saved ? JSON.parse(saved) : false;
+        });
+
+        useEffect(() => {
+          const root = document.documentElement;
+          if (isDark) {
+            root.classList.add('dark');
+            document.body.classList.add('dark');
+          } else {
+            root.classList.remove('dark');
+            document.body.classList.remove('dark');
+          }
+          localStorage.setItem('ferre_dark', JSON.stringify(isDark));
+        }, [isDark]);
+
+        return (
+          <ThemeContext.Provider value={{ isDark, toggleTheme: () => setIsDark(!isDark) }}>
+            {children}
+          </ThemeContext.Provider>
+        );
+      }
+      const useTheme = () => useContext(ThemeContext);
+
+      // 4. AXIOS / CLIENTE HTTP SIMPLIFICADO CON FETCH
+      const api = {
+        request: async (url, options = {}) => {
+          const token = localStorage.getItem('ferre_token');
+          const headers = {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...options.headers
+          };
+
+          try {
+            const res = await fetch(url, { ...options, headers });
+            
+            // Si el token expira (401/403)
+            if (res.status === 401 || res.status === 403) {
+              if (!url.includes('/api/auth/login')) {
+                localStorage.removeItem('ferre_token');
+                localStorage.removeItem('ferre_user');
+                window.location.hash = '#/login';
+              }
+            }
+            
+            const data = await res.json();
+            return { data, status: res.status };
+          } catch (e) {
+            console.error(e);
+            throw new Error('Error al conectar con el servidor.');
+          }
+        },
+        get: (url) => api.request(url, { method: 'GET' }),
+        post: (url, body) => api.request(url, { method: 'POST', body: JSON.stringify(body) }),
+        put: (url, body) => api.request(url, { method: 'PUT', body: JSON.stringify(body) }),
+        delete: (url) => api.request(url, { method: 'DELETE' })
+      };
+
+      // 5. CONTEXTO GLOBAL DE AUTENTICACIÓN
+      const AuthContext = createContext();
+      function AuthProvider({ children }) {
+        const [user, setUser] = useState(null);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+          async function checkSession() {
+            const token = localStorage.getItem('ferre_token');
+            if (!token) {
+              setLoading(false);
+              return;
+            }
+            try {
+              const res = await api.get('/api/auth/profile');
+              if (res.data.success) {
+                setUser(res.data.data);
+              } else {
+                logout();
+              }
+            } catch (e) {
+              logout();
+            } finally {
+              setLoading(false);
+            }
+          }
+          checkSession();
+        }, []);
+
+        const login = async (email, password) => {
+          try {
+            const res = await api.post('/api/auth/login', { email, password });
+            if (res.data.success) {
+              localStorage.setItem('ferre_token', res.data.token);
+              localStorage.setItem('ferre_user', JSON.stringify(res.data.data));
+              setUser(res.data.data);
+              return { success: true };
+            }
+            return { success: false, message: res.data.message };
+          } catch (e) {
+            return { success: false, message: 'Credenciales inválidas o servidor desconectado.' };
+          }
+        };
+
+        const logout = () => {
+          localStorage.removeItem('ferre_token');
+          localStorage.removeItem('ferre_user');
+          setUser(null);
+          window.location.hash = '#/login';
+        };
+
+        return (
+          <AuthContext.Provider value={{ user, isAuthenticated: !!user, isAdmin: user?.role === 'ADMIN', login, logout, loading }}>
+            {!loading && children}
+          </AuthContext.Provider>
+        );
+      }
+      const useAuth = () => useContext(AuthContext);
+
+      // 6. ENRUTADOR CLIENTE SPA HASH-BASED
+      const RouterContext = createContext();
+      function RouterProvider({ children }) {
+        const [hash, setHash] = useState(window.location.hash || '#/');
+
+        useEffect(() => {
+          const handleHashChange = () => setHash(window.location.hash || '#/');
+          window.addEventListener('hashchange', handleHashChange);
+          return () => window.removeEventListener('hashchange', handleHashChange);
+        }, []);
+
+        const navigate = (newPath) => {
+          window.location.hash = newPath;
+        };
+
+        return (
+          <RouterContext.Provider value={{ currentPath: hash, navigate }}>
+            {children}
+          </RouterContext.Provider>
+        );
+      }
+      const useRouter = () => useContext(RouterContext);
+
+      // 7. COMPONENTE COMÚN: MODAL
+      function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+        useEffect(() => {
+          if (isOpen) document.body.style.overflow = 'hidden';
+          else document.body.style.overflow = '';
+          return () => { document.body.style.overflow = ''; };
+        }, [isOpen]);
+
+        if (!isOpen) return null;
+
+        const sizeClasses = {
+          sm: 'max-w-md',
+          md: 'max-w-lg',
+          lg: 'max-w-2xl',
+          xl: 'max-w-4xl'
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={onClose} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity"></div>
+            <div className={`bg-white dark:bg-ferre-dark-card w-full ${sizeClasses[size]} rounded-2xl shadow-2xl border border-slate-100 dark:border-ferre-dark-border overflow-hidden z-10 transition-all scale-100 p-6`}>
+              <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-ferre-dark-border">
+                <h3 className="font-bold text-gray-800 dark:text-slate-150 text-base">{title}</h3>
+                <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200">
+                  <Icon name="x" />
+                </button>
+              </div>
+              <div className="py-4 max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
+            </div>
+          </div>
+        );
+      }
+
+      // ==========================================
+      // VISTAS Y PÁGINAS DEL SPA
+      // ==========================================
+
+      // --- LOGIN PAGE ---
+      function Login() {
+        const { login } = useAuth();
+        const { showToast } = useToast();
+        const { navigate } = useRouter();
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [loading, setLoading] = useState(false);
+
+        const handleSubmit = async (e) => {
+          e.preventDefault();
+          setLoading(true);
+          const res = await login(email, password);
+          setLoading(false);
+          if (res.success) {
+            showToast('¡Inicio de sesión exitoso!', 'success');
+            navigate('#/');
+          } else {
+            showToast(res.message, 'error');
+          }
+        };
+
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 px-4 relative overflow-hidden">
+            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl"></div>
+            
+            <div className="w-full max-w-md z-10">
+              <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 shadow-2xl rounded-3xl p-8 md:p-10 text-center">
+                <div className="mx-auto w-16 h-16 bg-yellow-500 text-slate-950 rounded-2xl flex items-center justify-center shadow-lg shadow-yellow-500/20 mb-6">
+                  <Icon name="hammer" className="w-8 h-8" />
+                </div>
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">Freereterria</h1>
+                <p className="text-sm text-slate-400 mt-1.5 font-medium">Monolito Único Profesional de Inventario & POS</p>
+
+                <form onSubmit={handleSubmit} className="mt-8 space-y-4 text-left">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Email</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-950/40 border border-slate-700/60 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-yellow-500"
+                      placeholder="ejemplo@freereterria.com"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Contraseña</label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-950/40 border border-slate-700/60 rounded-xl text-sm text-white focus:outline-none focus:border-yellow-500"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+
+                  <div className="p-3 bg-slate-800/40 rounded-xl border border-slate-700/30 text-xs text-slate-400 space-y-1">
+                    <span className="font-bold text-yellow-500 block">Acceso Demo:</span>
+                    <p>🔑 <strong>Admin:</strong> admin@freereterria.com / admin123</p>
+                    <p>🔑 <strong>Empleado:</strong> empleado@freereterria.com / empleado123</p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-4 mt-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-yellow-500/10 active:scale-[0.98] disabled:opacity-50"
+                  >
+                    {loading ? 'Verificando...' : 'Entrar al Sistema'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- DASHBOARD PAGE ---
+      function Dashboard() {
+        const { showToast } = useToast();
+        const { navigate } = useRouter();
+        const [stats, setStats] = useState(null);
+        const [loading, setLoading] = useState(true);
+        const chartRef = useRef(null);
+
+        useEffect(() => {
+          async function loadDashboard() {
+            try {
+              const res = await api.get('/api/reports/dashboard');
+              if (res.data.success) {
+                setStats(res.data.data);
+                renderChart(res.data.data.salesTrend);
+              }
+            } catch (e) {
+              showToast('Error cargando analíticas.', 'error');
+            } finally {
+              setLoading(false);
+            }
+          }
+          loadDashboard();
+        }, []);
+
+        const renderChart = (trend) => {
+          setTimeout(() => {
+            const element = document.querySelector("#sales-area-chart");
+            if (!element || !trend) return;
+            element.innerHTML = "";
+            const options = {
+              series: [{ name: 'Ventas', data: trend.map(t => t.ventas) }],
+              chart: { type: 'area', height: 260, toolbar: { show: false }, fontFamily: 'Inter, sans-serif' },
+              stroke: { curve: 'smooth', width: 3, colors: ['#3b82f6'] },
+              fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
+              colors: ['#3b82f6'],
+              xaxis: { categories: trend.map(t => t.name), axisBorder: { show: false }, axisTicks: { show: false } },
+              yaxis: { labels: { formatter: (v) => `S/. ${v.toFixed(0)}` } },
+              grid: { borderColor: '#f1f5f9' },
+              dataLabels: { enabled: false }
+            };
+            const chart = new ApexCharts(element, options);
+            chart.render();
+          }, 300);
+        };
+
+        if (loading) return <div className="text-center py-20"><div className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
+
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Panel de Control</h1>
+                <p className="text-xs text-gray-400">Resumen y facturación acumulada del inventario de ferretería.</p>
+              </div>
+              <button onClick={() => navigate('#/pos')} className="px-4 py-2.5 bg-yellow-500 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 shadow-md hover:bg-yellow-400 active:scale-[0.98] transition-all">
+                <Icon name="shopping-bag" />
+                <span>Iniciar POS Venta</span>
+              </button>
+            </div>
+
+            {/* Tarjetas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-6 rounded-2xl flex items-center justify-between shadow-sm">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Productos Activos</span>
+                  <h3 className="text-2xl font-extrabold mt-1 text-gray-850 dark:text-white">{stats?.totalProducts}</h3>
+                  <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Catálogo al día</span>
+                </div>
+                <div className="p-3.5 bg-blue-500/10 text-blue-500 rounded-xl"><Icon name="package" className="w-6 h-6" /></div>
+              </div>
+
+              <div onClick={() => navigate('#/products')} className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-6 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer hover:border-amber-300">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Stock Crítico</span>
+                  <h3 className={`text-2xl font-extrabold mt-1 ${stats?.lowStockCount > 0 ? 'text-amber-500' : 'text-gray-850 dark:text-white'}`}>{stats?.lowStockCount}</h3>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${stats?.lowStockCount > 0 ? 'bg-amber-500/10 text-amber-500 animate-pulse border border-amber-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                    {stats?.lowStockCount > 0 ? 'Reabastecer' : 'Stock OK'}
+                  </span>
+                </div>
+                <div className={`p-3.5 rounded-xl ${stats?.lowStockCount > 0 ? 'bg-amber-500/15 text-amber-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}><Icon name="alert-triangle" className="w-6 h-6" /></div>
+              </div>
+
+              <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-6 rounded-2xl flex items-center justify-between shadow-sm">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Caja Hoy</span>
+                  <h3 className="text-2xl font-extrabold mt-1 text-gray-850 dark:text-white">S/. {stats?.salesToday.toFixed(2)}</h3>
+                  <span className="text-[9px] font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">{stats?.salesCountToday} boletas</span>
+                </div>
+                <div className="p-3.5 bg-emerald-500/10 text-emerald-500 rounded-xl"><Icon name="dollar-sign" className="w-6 h-6" /></div>
+              </div>
+
+              <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-6 rounded-2xl flex items-center justify-between shadow-sm">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ingresos del Mes</span>
+                  <h3 className="text-2xl font-extrabold mt-1 text-gray-850 dark:text-white">S/. {stats?.earningsMonth.toFixed(2)}</h3>
+                  <span className="text-[9px] font-bold text-yellow-600 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">Mes actual</span>
+                </div>
+                <div className="p-3.5 bg-yellow-500/10 text-yellow-500 rounded-xl"><Icon name="trending-up" className="w-6 h-6" /></div>
+              </div>
+            </div>
+
+            {/* Gráfico y Alertas */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-6 rounded-2xl shadow-sm">
+                <h3 className="font-extrabold text-sm text-gray-800 dark:text-white mb-4">Ventas Recientes</h3>
+                <div id="sales-area-chart"></div>
+              </div>
+
+              <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-6 rounded-2xl shadow-sm space-y-4">
+                <h3 className="font-extrabold text-sm text-gray-800 dark:text-white pb-2 border-b border-slate-50 dark:border-slate-800">Alertas de Reposición</h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {stats?.lowStockAlerts.length === 0 ? (
+                    <p className="text-xs text-gray-450 italic text-center py-8">¡Excelente! Sin productos críticos.</p>
+                  ) : (
+                    stats?.lowStockAlerts.map(prod => (
+                      <div key={prod.id} className="flex justify-between items-center text-xs p-2 bg-slate-50/50 dark:bg-slate-900 rounded-lg">
+                        <div>
+                          <p className="font-bold text-gray-800 dark:text-slate-200">{prod.name}</p>
+                          <span className="text-[10px] text-gray-450">SKU: {prod.sku}</span>
+                        </div>
+                        <span className="font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded">Stock: {prod.stock}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- PRODUCTOS CRUD PAGE ---
+      function Products() {
+        const { showToast } = useToast();
+        const { isAdmin } = useAuth();
+
+        const [products, setProducts] = useState([]);
+        const [categories, setCategories] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        const [search, setSearch] = useState('');
+        const [categoryId, setCategoryId] = useState('');
+        const [lowStock, setLowStock] = useState('false');
+
+        // Modal Form
+        const [isOpen, setIsOpen] = useState(false);
+        const [editingProduct, setEditingProduct] = useState(null);
+        const [name, setName] = useState('');
+        const [sku, setSku] = useState('');
+        const [selectedCatId, setSelectedCatId] = useState('');
+        const [brand, setBrand] = useState('');
+        const [description, setDescription] = useState('');
+        const [pricePurchase, setPricePurchase] = useState('');
+        const [priceSale, setPriceSale] = useState('');
+        const [stock, setStock] = useState('10');
+        const [stockMin, setStockMin] = useState('5');
+        const [status, setStatus] = useState('ACTIVE');
+        const [isSubmitting, setIsSubmitting] = useState(false);
+
+        // Scanner
+        const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+        async function loadProducts() {
+          setLoading(true);
+          try {
+            const q = [];
+            if (search) q.push(`search=${search}`);
+            if (categoryId) q.push(`categoryId=${categoryId}`);
+            if (lowStock === 'true') q.push(`lowStock=true`);
+            const queryStr = q.length > 0 ? `?${q.join('&')}` : '';
+            const res = await api.get(`/api/products${queryStr}`);
+            if (res.data.success) setProducts(res.data.data);
+          } catch (e) {
+            showToast('Error cargando catálogo.', 'error');
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        async function loadCategories() {
+          const res = await api.get('/api/categories');
+          if (res.data.success) {
+            setCategories(res.data.data);
+          }
+        }
+
+        useEffect(() => { loadProducts(); }, [search, categoryId, lowStock]);
+        useEffect(() => { loadCategories(); }, []);
+
+        const handleOpenAdd = () => {
+          setEditingProduct(null);
+          setName('');
+          setSku('');
+          setSelectedCatId(categories[0]?.id || '');
+          setBrand('');
+          setDescription('');
+          setPricePurchase('');
+          setPriceSale('');
+          setStock('10');
+          setStockMin('5');
+          setStatus('ACTIVE');
+          setIsOpen(true);
+        };
+
+        const handleOpenEdit = (p) => {
+          setEditingProduct(p);
+          setName(p.name);
+          setSku(p.sku);
+          setSelectedCatId(p.categoryId);
+          setBrand(p.brand || '');
+          setDescription(p.description || '');
+          setPricePurchase(p.pricePurchase.toString());
+          setPriceSale(p.priceSale.toString());
+          setStock(p.stock.toString());
+          setStockMin(p.stockMin.toString());
+          setStatus(p.status);
+          setIsOpen(true);
+        };
+
+        const handleSave = async (e) => {
+          e.preventDefault();
+          setIsSubmitting(true);
+          const payload = {
+            name, sku, categoryId: parseInt(selectedCatId), brand, description,
+            pricePurchase: parseFloat(pricePurchase), priceSale: parseFloat(priceSale),
+            stock: parseInt(stock), stockMin: parseInt(stockMin), status
+          };
+          try {
+            let res;
+            if (editingProduct) res = await api.put(`/api/products/${editingProduct.id}`, payload);
+            else res = await api.post('/api/products', payload);
+
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              setIsOpen(false);
+              loadProducts();
+            } else {
+              showToast(res.data.message, 'error');
+            }
+          } catch (err) {
+            showToast('Error al guardar artículo.', 'error');
+          } finally {
+            setIsSubmitting(false);
+          }
+        };
+
+        const handleDelete = async (id) => {
+          if (!confirm('¿Deseas eliminar este producto?')) return;
+          try {
+            const res = await api.delete(`/api/products/${id}`);
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              loadProducts();
+            }
+          } catch (e) {
+            showToast('Error al borrar.', 'error');
+          }
+        };
+
+        const simulateScan = (code) => {
+          setSku(code);
+          setIsScannerOpen(false);
+          showToast(`¡Código cargado láser: ${code}!`, 'success');
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Catálogo de Productos</h1>
+                <p className="text-xs text-gray-400">Control de stock, costos de compra, códigos de barra y marcas.</p>
+              </div>
+              <button onClick={handleOpenAdd} className="px-4 py-2.5 bg-yellow-500 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 shadow-md hover:bg-yellow-400 active:scale-[0.98]">
+                <Icon name="plus" />
+                <span>Añadir Producto</span>
+              </button>
+            </div>
+
+            {/* Filtros */}
+            <div className="bg-white dark:bg-ferre-dark p-4 rounded-2xl border border-slate-100 dark:border-ferre-dark-border flex flex-col md:flex-row gap-4 items-center">
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none focus:border-yellow-500"
+                  placeholder="Buscar por nombre, SKU o marca..."
+                />
+              </div>
+
+              <select
+                value={categoryId}
+                onChange={e => setCategoryId(e.target.value)}
+                className="w-full md:w-56 py-2.5 px-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none focus:border-yellow-500"
+              >
+                <option value="">Todas las Categorías</option>
+                {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+              </select>
+
+              <select
+                value={lowStock}
+                onChange={e => setLowStock(e.target.value)}
+                className="w-full md:w-52 py-2.5 px-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none focus:border-yellow-500"
+              >
+                <option value="false">Todos los Stocks</option>
+                <option value="true">⚠️ Stock Crítico</option>
+              </select>
+            </div>
+
+            {/* Tabla */}
+            <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border rounded-2xl shadow-sm overflow-hidden">
+              {loading ? (
+                <div className="text-center py-20"><Loader2 className="w-8 h-8 text-yellow-500 animate-spin mx-auto" /></div>
+              ) : products.length === 0 ? (
+                <p className="text-center py-20 text-gray-400 text-xs font-semibold">No se registran productos.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="ferre-table">
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Nombre del Artículo</th>
+                        <th>Categoría</th>
+                        <th>Marca</th>
+                        <th>Costo</th>
+                        <th>P. Venta</th>
+                        <th>Stock Actual</th>
+                        <th>Estado</th>
+                        <th className="text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {products.map(p => {
+                        const isLow = p.stock <= p.stockMin;
+                        return (
+                          <tr key={p.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors ${isLow ? 'bg-amber-500/5' : ''}`}>
+                            <td className="font-bold font-mono text-gray-700 dark:text-slate-350">{p.sku}</td>
+                            <td>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-800 dark:text-white">{p.name}</span>
+                                <span className="text-[10px] text-gray-400 truncate max-w-xs">{p.description}</span>
+                              </div>
+                            </td>
+                            <td className="text-gray-500 dark:text-slate-400">{p.category?.name}</td>
+                            <td className="text-gray-550 dark:text-slate-300 font-bold">{p.brand || '-'}</td>
+                            <td className="text-gray-500">S/. {p.pricePurchase.toFixed(2)}</td>
+                            <td className="font-extrabold">S/. {p.priceSale.toFixed(2)}</td>
+                            <td>
+                              {isLow ? (
+                                <span className="inline-flex items-center gap-1 text-rose-500 font-black bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                                  ⚠️ {p.stock} / {p.stockMin} uds
+                                </span>
+                              ) : (
+                                <span className="font-bold text-gray-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded">{p.stock} uds</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${p.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40'}`}>
+                                {p.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="flex justify-center gap-1.5">
+                                <button onClick={() => handleOpenEdit(p)} className="p-1.5 rounded bg-slate-50 dark:bg-slate-800 hover:bg-slate-150 text-slate-600 dark:text-slate-300"><Icon name="edit-2" className="w-4.5 h-4.5" /></button>
+                                {isAdmin && (<button onClick={() => handleDelete(p.id)} className="p-1.5 rounded bg-rose-500/5 hover:bg-rose-500/10 text-rose-500"><Icon name="trash-2" className="w-4.5 h-4.5" /></button>)}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal CRUD */}
+            <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editingProduct ? 'Editar Producto' : 'Añadir Nuevo Producto'} size="lg">
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Nombre *</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Código SKU *</label>
+                    <div className="flex gap-2">
+                      <input type="text" value={sku} onChange={e => setSku(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none font-bold" required />
+                      <button type="button" onClick={() => setIsScannerOpen(true)} className="p-2 bg-slate-900 text-yellow-500 rounded-xl shrink-0"><Icon name="barcode" /></button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Categoría *</label>
+                    <select value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required>
+                      {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Marca</label>
+                    <input type="text" value={brand} onChange={e => setBrand(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Costo Compra (S/.) *</label>
+                    <input type="number" step="0.01" value={pricePurchase} onChange={e => setPricePurchase(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Precio Venta (S/.) *</label>
+                    <input type="number" step="0.01" value={priceSale} onChange={e => setPriceSale(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Stock Inicial *</label>
+                    <input type="number" value={stock} onChange={e => setStock(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Stock Min Alerta *</label>
+                    <input type="number" value={stockMin} onChange={e => setStockMin(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Estado</label>
+                    <select value={status} onChange={e => setStatus(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none">
+                      <option value="ACTIVE">Activo</option>
+                      <option value="INACTIVE">Inactivo (Ocultar)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Descripción</label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)} rows="2" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none resize-none" placeholder="Ficha técnica..."></textarea>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-ferre-dark-border">
+                  <button type="button" onClick={() => setIsOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-gray-400 rounded-xl text-xs font-bold">Cancelar</button>
+                  <button type="submit" disabled={isSubmitting} className="px-5 py-2 bg-yellow-500 text-slate-950 font-bold rounded-xl text-xs shadow-md">{isSubmitting ? 'Guardando...' : 'Guardar Artículo'}</button>
+                </div>
+              </form>
+            </Modal>
+
+            {/* Modal Scanner */}
+            <Modal isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} title="Lector Láser Barcode" size="sm">
+              <div className="flex flex-col items-center gap-6 p-4 text-center">
+                <div className="relative w-full h-32 bg-slate-950 rounded-xl flex items-center justify-center border border-slate-800">
+                  <div className="absolute left-0 w-full h-0.5 bg-red-500 animate-[bounce_2s_infinite]"></div>
+                  <Icon name="barcode" className="w-20 h-20 text-slate-800" />
+                </div>
+                <div className="grid grid-cols-2 gap-2 w-full">
+                  <button type="button" onClick={() => simulateScan('SKU-MART-001')} className="p-2.5 bg-slate-100 dark:bg-slate-900 border border-transparent rounded-lg text-xs font-bold">🔨 Martillo Truper</button>
+                  <button type="button" onClick={() => simulateScan('SKU-TALA-001')} className="p-2.5 bg-slate-100 dark:bg-slate-900 border border-transparent rounded-lg text-xs font-bold">🔌 Taladro DeWalt</button>
+                </div>
+              </div>
+            </Modal>
+          </div>
+        );
+      }
+
+      // --- CATEGORÍAS CRUD ---
+      function Categories() {
+        const { showToast } = useToast();
+        const { isAdmin } = useAuth();
+        const [categories, setCategories] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        const [isOpen, setIsOpen] = useState(false);
+        const [editingCategory, setEditingCategory] = useState(null);
+        const [name, setName] = useState('');
+        const [description, setDescription] = useState('');
+
+        async function loadCategories() {
+          setLoading(true);
+          try {
+            const res = await api.get('/api/categories');
+            if (res.data.success) setCategories(res.data.data);
+          } catch (e) {
+            showToast('Error cargando categorías.', 'error');
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        useEffect(() => { loadCategories(); }, []);
+
+        const handleOpenAdd = () => {
+          setEditingCategory(null);
+          setName('');
+          setDescription('');
+          setIsOpen(true);
+        };
+
+        const handleOpenEdit = (c) => {
+          setEditingCategory(c);
+          setName(c.name);
+          setDescription(c.description || '');
+          setIsOpen(true);
+        };
+
+        const handleSave = async (e) => {
+          e.preventDefault();
+          const payload = { name, description };
+          try {
+            let res;
+            if (editingCategory) res = await api.put(`/api/categories/${editingCategory.id}`, payload);
+            else res = await api.post('/api/categories', payload);
+
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              setIsOpen(false);
+              loadCategories();
+            } else {
+              showToast(res.data.message, 'error');
+            }
+          } catch (err) {
+            showToast('Error al guardar.', 'error');
+          }
+        };
+
+        const handleDelete = async (id) => {
+          if (!confirm('¿Deseas eliminar esta categoría?')) return;
+          try {
+            const res = await api.delete(`/api/categories/${id}`);
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              loadCategories();
+            } else {
+              showToast(res.data.message, 'error');
+            }
+          } catch (e) {
+            showToast('Error al borrar.', 'error');
+          }
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Categorías</h1>
+                <p className="text-xs text-gray-400">Divisiones de clasificación del catálogo ferretero.</p>
+              </div>
+              {isAdmin && (
+                <button onClick={handleOpenAdd} className="px-4 py-2.5 bg-yellow-500 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 shadow-md hover:bg-yellow-400 active:scale-[0.98]">
+                  <Icon name="plus" />
+                  <span>Nueva Categoría</span>
+                </button>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="text-center py-20"><Loader2 className="w-8 h-8 text-yellow-500 animate-spin mx-auto" /></div>
+            ) : categories.length === 0 ? (
+              <p className="text-center py-20 text-gray-400 text-xs">Sin categorías registradas.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {categories.map(cat => (
+                  <div key={cat.id} className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-5 rounded-2xl flex flex-col justify-between shadow-sm hover:-translate-y-1 transition-all duration-300">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="p-2.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-xl"><Icon name="tags" /></div>
+                        <span className="text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-350 px-2 py-0.5 rounded flex items-center gap-1"><Icon name="package" className="w-3.5 h-3.5" />{cat._count?.products || 0} artículos</span>
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-gray-850 dark:text-white">{cat.name}</h4>
+                        <p className="text-xs text-gray-400 dark:text-slate-400 leading-relaxed min-h-[30px] mt-1.5">{cat.description || 'Sin descripción.'}</p>
+                      </div>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="flex justify-end gap-1.5 mt-4 pt-3 border-t border-slate-50 dark:border-slate-800/80">
+                        <button onClick={() => handleOpenEdit(cat)} className="p-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-white"><Icon name="edit-2" className="w-4.5 h-4.5" /></button>
+                        <button onClick={() => handleDelete(cat.id)} className="p-1.5 text-rose-500 hover:bg-rose-500/5 rounded"><Icon name="trash-2" className="w-4.5 h-4.5" /></button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editingCategory ? 'Editar Categoría' : 'Nueva Categoría'} size="md">
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Nombre *</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Descripción</label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)} rows="3" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none resize-none"></textarea>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-ferre-dark-border">
+                  <button type="button" onClick={() => setIsOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-gray-400 rounded-xl text-xs font-bold">Cancelar</button>
+                  <button type="submit" className="px-5 py-2 bg-yellow-500 text-slate-950 font-bold rounded-xl text-xs shadow-md">Guardar</button>
+                </div>
+              </form>
+            </Modal>
+          </div>
+        );
+      }
+
+      // --- PROVEEDORES CRUD ---
+      function Suppliers() {
+        const { showToast } = useToast();
+        const { isAdmin } = useAuth();
+        const [suppliers, setSuppliers] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        const [isOpen, setIsOpen] = useState(false);
+        const [editingSupplier, setEditingSupplier] = useState(null);
+        const [name, setName] = useState('');
+        const [phone, setPhone] = useState('');
+        const [address, setAddress] = useState('');
+        const [email, setEmail] = useState('');
+
+        async function loadSuppliers() {
+          setLoading(true);
+          try {
+            const res = await api.get('/api/suppliers');
+            if (res.data.success) setSuppliers(res.data.data);
+          } catch (e) {
+            showToast('Error cargando proveedores.', 'error');
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        useEffect(() => { loadSuppliers(); }, []);
+
+        const handleOpenAdd = () => {
+          setEditingSupplier(null);
+          setName('');
+          setPhone('');
+          setAddress('');
+          setEmail('');
+          setIsOpen(true);
+        };
+
+        const handleOpenEdit = (s) => {
+          setEditingSupplier(s);
+          setName(s.name);
+          setPhone(s.phone || '');
+          setAddress(s.address || '');
+          setEmail(s.email || '');
+          setIsOpen(true);
+        };
+
+        const handleSave = async (e) => {
+          e.preventDefault();
+          const payload = { name, phone, address, email };
+          try {
+            let res;
+            if (editingSupplier) res = await api.put(`/api/suppliers/${editingSupplier.id}`, payload);
+            else res = await api.post('/api/suppliers', payload);
+
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              setIsOpen(false);
+              loadSuppliers();
+            } else {
+              showToast(res.data.message, 'error');
+            }
+          } catch (err) {
+            showToast('Error al guardar.', 'error');
+          }
+        };
+
+        const handleDelete = async (id) => {
+          if (!confirm('¿Deseas eliminar este proveedor?')) return;
+          try {
+            const res = await api.delete(`/api/suppliers/${id}`);
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              loadSuppliers();
+            } else {
+              showToast(res.data.message, 'error');
+            }
+          } catch (e) {
+            showToast('Error al borrar.', 'error');
+          }
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Proveedores</h1>
+                <p className="text-xs text-gray-400">Directorio de contacto de distribución y abastecimiento.</p>
+              </div>
+              {isAdmin && (
+                <button onClick={handleOpenAdd} className="px-4 py-2.5 bg-yellow-500 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 shadow-md hover:bg-yellow-400 active:scale-[0.98]">
+                  <Icon name="plus" />
+                  <span>Nuevo Proveedor</span>
+                </button>
+              )}
+            </div>
+
+            <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border rounded-2xl shadow-sm overflow-hidden">
+              {loading ? (
+                <div className="text-center py-20"><Loader2 className="w-8 h-8 text-yellow-500 animate-spin mx-auto" /></div>
+              ) : suppliers.length === 0 ? (
+                <p className="text-center py-20 text-gray-400 text-xs">Sin proveedores.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="ferre-table">
+                    <thead>
+                      <tr>
+                        <th>Proveedor</th>
+                        <th>Teléfono</th>
+                        <th>Dirección</th>
+                        <th>Correo</th>
+                        <th className="text-center">Compras</th>
+                        {isAdmin && <th className="text-center">Acciones</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {suppliers.map(sup => (
+                        <tr key={sup.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/45 transition-colors">
+                          <td>
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-lg flex items-center justify-center font-bold text-xs"><Icon name="truck" className="w-4 h-4" /></div>
+                              <span className="font-bold text-slate-800 dark:text-white">{sup.name}</span>
+                            </div>
+                          </td>
+                          <td className="text-gray-500 font-semibold">{sup.phone || '-'}</td>
+                          <td className="text-gray-500 max-w-xs truncate">{sup.address || '-'}</td>
+                          <td className="text-gray-500">{sup.email || '-'}</td>
+                          <td className="text-center">
+                            <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-350 px-2.5 py-0.5 rounded">{sup._count?.purchases} facturas</span>
+                          </td>
+                          {isAdmin && (
+                            <td>
+                              <div className="flex justify-center gap-1.5">
+                                <button onClick={() => handleOpenEdit(sup)} className="p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500"><Icon name="edit-2" className="w-4.5 h-4.5" /></button>
+                                <button onClick={() => handleDelete(sup.id)} className="p-1.5 rounded hover:bg-rose-500/5 text-rose-500"><Icon name="trash-2" className="w-4.5 h-4.5" /></button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editingSupplier ? 'Editar Proveedor' : 'Registrar Proveedor'} size="md">
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Nombre Comercial *</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" required />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Teléfono</label>
+                  <input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Correo</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Dirección</label>
+                  <input type="text" value={address} onChange={e => setAddress(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none" />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-ferre-dark-border">
+                  <button type="button" onClick={() => setIsOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-gray-400 rounded-xl text-xs font-bold">Cancelar</button>
+                  <button type="submit" className="px-5 py-2 bg-yellow-500 text-slate-950 font-bold rounded-xl text-xs shadow-md">Guardar</button>
+                </div>
+              </form>
+            </Modal>
+          </div>
+        );
+      }
+
+      // --- COMPRAS (LOGÍSTICA) ---
+      function Purchases() {
+        const { showToast } = useToast();
+        const [purchases, setPurchases] = useState([]);
+        const [suppliers, setSuppliers] = useState([]);
+        const [products, setProducts] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        const [isOpen, setIsOpen] = useState(false);
+        const [viewingPurchase, setViewingPurchase] = useState(null);
+
+        const [supplierId, setSupplierId] = useState('');
+        const [items, setItems] = useState([{ productId: '', quantity: 1, pricePurchase: 0.00 }]);
+        const [submitting, setSubmitting] = useState(false);
+
+        async function loadPurchases() {
+          setLoading(true);
+          try {
+            const res = await api.get('/api/purchases');
+            if (res.data.success) setPurchases(res.data.data);
+          } catch (e) {
+            showToast('Error cargando compras.', 'error');
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        async function loadSelectors() {
+          const [sup, prod] = await Promise.all([api.get('/api/suppliers'), api.get('/api/products')]);
+          if (sup.data.success) setSuppliers(sup.data.data);
+          if (prod.data.success) setProducts(prod.data.data.filter(p => p.status === 'ACTIVE'));
+        }
+
+        useEffect(() => { loadPurchases(); loadSelectors(); }, []);
+
+        const handleOpenAdd = () => {
+          if (suppliers.length === 0 || products.length === 0) {
+            showToast('Registra al menos un proveedor y producto primero.', 'warning');
+            return;
+          }
+          setSupplierId(suppliers[0]?.id || '');
+          setItems([{ productId: products[0]?.id || '', quantity: 1, pricePurchase: products[0]?.pricePurchase || 1.00 }]);
+          setIsOpen(true);
+        };
+
+        const handleItemChange = (index, field, val) => {
+          setItems(prev => {
+            const updated = [...prev];
+            updated[index][field] = val;
+            if (field === 'productId') {
+              const matched = products.find(p => p.id === parseInt(val));
+              if (matched) updated[index].pricePurchase = matched.pricePurchase;
+            }
+            return updated;
+          });
+        };
+
+        const handleSave = async (e) => {
+          e.preventDefault();
+          setSubmitting(true);
+          const payload = {
+            supplierId: parseInt(supplierId),
+            items: items.map(i => ({ productId: parseInt(i.productId), quantity: parseInt(i.quantity), pricePurchase: parseFloat(i.pricePurchase) }))
+          };
+          try {
+            const res = await api.post('/api/purchases', payload);
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              setIsOpen(false);
+              loadPurchases();
+            }
+          } catch (err) {
+            showToast('Error registrando reabastecimiento.', 'error');
+          } finally {
+            setSubmitting(false);
+          }
+        };
+
+        const totalForm = items.reduce((acc, curr) => acc + ((parseInt(curr.quantity) || 0) * (parseFloat(curr.pricePurchase) || 0)), 0);
+
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Abastecimiento de Inventario</h1>
+                <p className="text-xs text-gray-400">Ingreso de mercadería de proveedores con incremento de existencias.</p>
+              </div>
+              <button onClick={handleOpenAdd} className="px-4 py-2.5 bg-yellow-500 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 shadow-md hover:bg-yellow-400 active:scale-[0.98]">
+                <Icon name="plus" />
+                <span>Registrar Compra</span>
+              </button>
+            </div>
+
+            <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border rounded-2xl shadow-sm overflow-hidden">
+              {loading ? (
+                <div className="text-center py-20"><Loader2 className="w-8 h-8 text-yellow-500 animate-spin mx-auto" /></div>
+              ) : purchases.length === 0 ? (
+                <p className="text-center py-20 text-gray-400 text-xs">Sin registros de compras.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="ferre-table">
+                    <thead>
+                      <tr>
+                        <th>Boleta / Factura</th>
+                        <th>Proveedor</th>
+                        <th>Fecha de Registro</th>
+                        <th>Comprador</th>
+                        <th className="text-right">Monto Total</th>
+                        <th className="text-center">Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {purchases.map(pur => (
+                        <tr key={pur.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="font-bold font-mono">COMP-${String(pur.id).padStart(5, '0')}</td>
+                          <td className="font-bold text-slate-800 dark:text-white">{pur.supplier?.name}</td>
+                          <td className="text-gray-500 font-semibold">{new Date(pur.createdAt).toLocaleString('es-ES')}</td>
+                          <td className="text-gray-500">{pur.user?.name.split(' ')[0]}</td>
+                          <td className="font-extrabold text-right">S/. {pur.total.toFixed(2)}</td>
+                          <td>
+                            <div className="flex justify-center">
+                              <button onClick={() => setViewingPurchase(pur)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 text-xs font-bold rounded-lg transition-colors cursor-pointer">Ver</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Agregar */}
+            <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Registrar Factura Proveedor" size="xl">
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="grid grid-cols-3 gap-4 items-center">
+                  <div className="col-span-2 flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Proveedor *</label>
+                    <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs font-semibold focus:outline-none" required>
+                      {suppliers.map(s => (<option key={s.id} value={s.id}>{s.name} ({s.email})</option>))}
+                    </select>
+                  </div>
+                  <div className="bg-slate-900 text-yellow-500 rounded-xl p-3 border text-center">
+                    <span className="text-[9px] font-bold text-slate-450 block uppercase">Total Neto</span>
+                    <strong className="text-lg font-black">S/. {totalForm.toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-slate-50 dark:border-slate-800">
+                  <div className="flex justify-between items-center pb-2">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Detalle de Productos</span>
+                    <button type="button" onClick={() => setItems(p => [...p, { productId: products[0]?.id || '', quantity: 1, pricePurchase: products[0]?.pricePurchase || 1.00 }])} className="px-3 py-1 bg-slate-900 text-yellow-500 text-xs font-bold rounded-lg flex items-center gap-1"><Icon name="plus" className="w-4 h-4" />Agregar</button>
+                  </div>
+
+                  {items.map((item, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-2 items-end bg-slate-50 dark:bg-slate-950/30 p-2.5 rounded-xl">
+                      <div className="col-span-6 flex flex-col gap-0.5">
+                        <label className="text-[9px] font-bold text-gray-450">Producto</label>
+                        <select value={item.productId} onChange={e => handleItemChange(index, 'productId', e.target.value)} className="w-full py-1.5 px-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-lg text-xs" required>
+                          {products.map(p => (<option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>))}
+                        </select>
+                      </div>
+
+                      <div className="col-span-3 flex flex-col gap-0.5">
+                        <label className="text-[9px] font-bold text-gray-450">Costo Unit</label>
+                        <input type="number" step="0.01" value={item.pricePurchase} onChange={e => handleItemChange(index, 'pricePurchase', e.target.value)} className="w-full py-1.5 px-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-lg text-xs font-bold" required />
+                      </div>
+
+                      <div className="col-span-2 flex flex-col gap-0.5">
+                        <label className="text-[9px] font-bold text-gray-450">Cant.</label>
+                        <input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', e.target.value)} className="w-full py-1.5 px-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-lg text-xs font-bold" required />
+                      </div>
+
+                      <div className="col-span-1 flex justify-center pb-1">
+                        <button type="button" onClick={() => setItems(p => p.filter((_, i) => i !== index))} disabled={items.length === 1} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg disabled:opacity-30"><Icon name="trash-2" className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-ferre-dark-border">
+                  <button type="button" onClick={() => setIsOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-gray-400 rounded-xl text-xs font-bold">Cancelar</button>
+                  <button type="submit" disabled={submitting} className="px-5 py-2 bg-yellow-500 text-slate-950 font-bold rounded-xl text-xs shadow-md">{submitting ? 'Abasteciendo...' : 'Guardar Compra'}</button>
+                </div>
+              </form>
+            </Modal>
+
+            {/* Modal Detalle */}
+            <Modal isOpen={!!viewingPurchase} onClose={() => setViewingPurchase(null)} title="Detalle Factura" size="md">
+              {viewingPurchase && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 text-xs border-b pb-3 border-slate-150">
+                    <div>
+                      <span className="font-bold text-slate-450 block uppercase text-[9px]">Distribuidor</span>
+                      <strong>{viewingPurchase.supplier?.name}</strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-slate-450 block uppercase text-[9px]">Factura</span>
+                      <strong>COMP-${String(viewingPurchase.id).padStart(5, '0')}</strong>
+                      <p className="text-[10px] text-gray-400">{new Date(viewingPurchase.createdAt).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 font-bold text-gray-400">
+                        <th className="py-2">SKU</th>
+                        <th className="py-2">Artículo</th>
+                        <th className="py-2 text-center">Costo</th>
+                        <th className="py-2 text-center">Cant.</th>
+                        <th className="py-2 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewingPurchase.details.map(d => (
+                        <tr key={d.id} className="border-b border-slate-50 font-semibold">
+                          <td className="py-2">{d.product?.sku}</td>
+                          <td className="py-2 truncate max-w-xs">{d.product?.name}</td>
+                          <td className="py-2 text-center">S/. {d.pricePurchase.toFixed(2)}</td>
+                          <td className="py-2 text-center">{d.quantity}</td>
+                          <td className="py-2 text-right font-black">S/. {(d.quantity * d.pricePurchase).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="flex justify-end pt-3 text-right">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 block uppercase">Total Facturado</span>
+                      <strong className="text-lg font-black bg-slate-950 text-yellow-500 px-3 py-1 rounded-lg border">S/. {viewingPurchase.total.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Modal>
+          </div>
+        );
+      }
+
+      // --- POS PUNTO DE VENTA (CAJA) ---
+      function POS() {
+        const { showToast } = useToast();
+        const [products, setProducts] = useState([]);
+        const [search, setSearch] = useState('');
+        const [cart, setCart] = useState([]);
+        const [discount, setDiscount] = useState('0');
+        const [submitting, setSubmitting] = useState(false);
+
+        const [isScannerOpen, setIsScannerOpen] = useState(false);
+        const [completedSale, setCompletedSale] = useState(null);
+
+        async function loadProducts() {
+          const res = await api.get('/api/products');
+          if (res.data.success) {
+            setProducts(res.data.data.filter(p => p.status === 'ACTIVE'));
+          }
+        }
+        useEffect(() => { loadProducts(); }, []);
+
+        const addToCart = (p) => {
+          if (p.stock <= 0) {
+            showToast(`El producto "${p.name}" está agotado.`, 'warning');
+            return;
+          }
+          setCart(prev => {
+            const existing = prev.find(i => i.productId === p.id);
+            if (existing) {
+              if (existing.quantity >= p.stock) {
+                showToast(`Superas las existencias disponibles.`, 'warning');
+                return prev;
+              }
+              return prev.map(item => item.productId === p.id ? { ...item, quantity: item.quantity + 1 } : item);
+            }
+            return [...prev, { productId: p.id, name: p.name, sku: p.sku, priceSale: p.priceSale, stock: p.stock, quantity: 1 }];
+          });
+        };
+
+        const updateCartQty = (productId, delta) => {
+          setCart(prev => prev.map(item => {
+            if (item.productId === productId) {
+              const newQty = item.quantity + delta;
+              if (newQty <= 0) return null;
+              if (newQty > item.stock) return item;
+              return { ...item, quantity: newQty };
+            }
+            return item;
+          }).filter(Boolean));
+        };
+
+        const handleScan = (code) => {
+          const matched = products.find(p => p.sku === code);
+          if (matched) {
+            addToCart(matched);
+            showToast(`Escaneado: ${matched.name}!`, 'success');
+            setIsScannerOpen(false);
+          } else {
+            showToast('Código no registrado.', 'error');
+          }
+        };
+
+        const handleCheckout = async (e) => {
+          e.preventDefault();
+          if (cart.length === 0) return;
+          setSubmitting(true);
+          const payload = { discount: parseFloat(discount) || 0, items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, priceSale: i.priceSale })) };
+          try {
+            const res = await api.post('/api/sales', payload);
+            if (res.data.success) {
+              const saleId = res.data.data.id;
+              const saleDetails = await api.get(`/api/sales/${saleId}`);
+              if (saleDetails.data.success) {
+                setCompletedSale(saleDetails.data.data);
+              }
+              if (window.confetti) {
+                window.confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+              }
+              showToast('¡Venta realizada con éxito!', 'success');
+              setCart([]);
+              setDiscount('0');
+              loadProducts();
+            }
+          } catch (err) {
+            showToast('Error de cobro.', 'error');
+          } finally {
+            setSubmitting(false);
+          }
+        };
+
+        const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()));
+
+        const subtotal = cart.reduce((acc, curr) => acc + (curr.quantity * curr.priceSale), 0);
+        const cleanDiscount = Math.min(subtotal, Math.max(0, parseFloat(discount) || 0));
+        const tax = (subtotal - cleanDiscount) * 0.18;
+        const total = subtotal - cleanDiscount;
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)]">
+            
+            {/* Izquierda Catálogo */}
+            <div className="lg:col-span-7 flex flex-col gap-4 h-full min-h-0">
+              <div className="bg-white dark:bg-ferre-dark p-4 rounded-2xl border border-slate-100 dark:border-ferre-dark-border shadow-sm flex gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                  <input type="text" value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs font-semibold focus:outline-none" placeholder="Buscar por SKU o Nombre..." />
+                </div>
+                <button onClick={() => setIsScannerOpen(true)} className="p-2.5 bg-slate-900 text-yellow-500 rounded-xl flex items-center gap-1"><Icon name="barcode" /><span className="text-xs font-bold hidden sm:inline">Escáner</span></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border rounded-2xl p-5 shadow-sm min-h-0">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {filtered.map(p => {
+                    const isLow = p.stock <= p.stockMin;
+                    return (
+                      <div key={p.id} onClick={() => p.stock > 0 && addToCart(p)} className={`border rounded-xl p-3 flex flex-col justify-between cursor-pointer hover:shadow hover:-translate-y-0.5 transition-all ${p.stock <= 0 ? 'opacity-40' : isLow ? 'border-amber-200 bg-amber-500/5' : 'border-slate-100 dark:border-slate-800'}`}>
+                        <div>
+                          <span className="font-mono text-[8px] text-gray-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{p.sku}</span>
+                          <h4 className="text-xs font-bold text-slate-800 dark:text-slate-250 truncate mt-1">{p.name}</h4>
+                        </div>
+                        <div className="flex items-end justify-between mt-3">
+                          <span className="text-[10px] font-bold text-rose-500">{p.stock <= 0 ? 'Agotado' : `${p.stock} uds`}</span>
+                          <strong className="text-xs font-black bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/25 px-1.5 py-0.5 rounded">S/. {p.priceSale.toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Derecha Carrito Caja */}
+            <div className="lg:col-span-5 bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border rounded-2xl shadow-sm p-4 flex flex-col justify-between h-full min-h-0">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <strong className="text-xs font-bold text-gray-800 dark:text-white uppercase">Caja POS</strong>
+                <span className="text-[10px] bg-slate-900 text-yellow-500 px-2 py-0.5 rounded font-black">{cart.length} ítems</span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-3 space-y-2.5 min-h-0">
+                {cart.length === 0 ? (
+                  <p className="text-xs text-gray-450 italic text-center py-20">Carrito vacío.</p>
+                ) : (
+                  cart.map(item => (
+                    <div key={item.productId} className="flex justify-between items-center text-xs p-2.5 bg-slate-50/50 dark:bg-slate-900/30 border rounded-lg">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-[9px] font-bold text-gray-450 block">{item.sku}</span>
+                        <h4 className="font-bold text-slate-800 dark:text-white truncate">{item.name}</h4>
+                        <span className="text-slate-400 font-semibold">S/. {item.priceSale.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center border rounded-lg overflow-hidden bg-white dark:bg-slate-900">
+                          <button onClick={() => updateCartQty(item.productId, -1)} className="p-1"><Minus className="w-3 h-3" /></button>
+                          <span className="px-2 font-bold text-xs">{item.quantity}</span>
+                          <button onClick={() => updateCartQty(item.productId, 1)} className="p-1"><Plus className="w-3 h-3" /></button>
+                        </div>
+                        <button onClick={() => setCart(c => c.filter(x => x.productId !== item.productId))} className="text-rose-500 p-1"><Icon name="trash-2" className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t pt-3 space-y-3 shrink-0">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-400 font-bold">Descuento (S/.)</span>
+                  <input type="number" min="0" value={discount} onChange={e => setDiscount(e.target.value)} className="w-20 px-2 py-1 bg-slate-50 dark:bg-slate-950/40 border rounded text-right text-xs font-bold focus:outline-none" />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-extrabold text-slate-500">TOTAL</span>
+                  <strong className="text-2xl font-black bg-slate-900 text-yellow-500 px-3.5 py-1.5 rounded-xl shadow border">S/. {total.toFixed(2)}</strong>
+                </div>
+                <button onClick={handleCheckout} disabled={cart.length === 0 || submitting} className="w-full py-3.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black rounded-xl text-sm shadow flex items-center justify-center gap-2 disabled:opacity-50">
+                  <Icon name="credit-card" />
+                  <span>{submitting ? 'Procesando Venta...' : 'Cobrar e Imprimir'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Scanner */}
+            <Modal isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} title="Escáner Láser de Caja" size="sm">
+              <div className="flex flex-col items-center gap-6 p-4 text-center">
+                <div className="relative w-full h-32 bg-slate-950 rounded-xl flex items-center justify-center border border-slate-800">
+                  <div className="absolute left-0 w-full h-0.5 bg-red-500 animate-[bounce_2s_infinite]"></div>
+                  <Icon name="barcode" className="w-20 h-20 text-slate-800" />
+                </div>
+                <div className="grid grid-cols-2 gap-2 w-full">
+                  {products.slice(0, 4).map(p => (
+                    <button key={p.id} onClick={() => handleScan(p.sku)} className="p-2 bg-slate-100 dark:bg-slate-900 border rounded-lg text-xs font-bold truncate">📦 {p.name} ({p.sku})</button>
+                  ))}
+                </div>
+              </div>
+            </Modal>
+
+            {/* Modal Boleta */}
+            <Modal isOpen={!!completedSale} onClose={() => setCompletedSale(null)} title="Boleta de Venta" size="sm">
+              {completedSale && (
+                <div className="space-y-4">
+                  <div id="print-receipt-ticket" className="bg-white text-slate-950 p-4 border rounded-xl font-mono text-[10px] space-y-3 max-w-xs mx-auto">
+                    <div className="text-center border-b pb-2">
+                      <div className="flex justify-center mb-1"><Hammer className="w-5 h-5" /></div>
+                      <h3 className="font-extrabold text-xs">Ferretería Freereterria</h3>
+                      <p>R.U.C. 20492817401</p>
+                      <p>Av. Industrial 450, Ate, Lima</p>
+                    </div>
+                    <div className="space-y-0.5 leading-tight">
+                      <p><strong>TICKET:</strong> B001-{String(completedSale.id).padStart(6, '0')}</p>
+                      <p><strong>FECHA:</strong> {new Date(completedSale.createdAt).toLocaleString('es-ES')}</p>
+                      <p><strong>CAJERO:</strong> {completedSale.user?.name}</p>
+                    </div>
+                    <div className="border-b border-dashed"></div>
+                    <div className="space-y-1">
+                      {completedSale.saleDetails.map(d => (
+                        <div key={d.id} className="flex justify-between">
+                          <span className="truncate max-w-[130px]">{d.product?.name}</span>
+                          <span>{d.quantity} x S/. {d.priceSale.toFixed(2)}</span>
+                          <span className="font-bold">S/. {d.total.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-b border-dashed"></div>
+                    <div className="text-right space-y-0.5 font-bold">
+                      <p>SUBTOTAL: S/. {(completedSale.total + completedSale.discount).toFixed(2)}</p>
+                      {completedSale.discount > 0 && <p className="text-rose-600">DESC: - S/. {completedSale.discount.toFixed(2)}</p>}
+                      <p className="text-xs font-black text-slate-950">TOTAL: S/. {completedSale.total.toFixed(2)}</p>
+                    </div>
+                    <p className="text-center font-bold uppercase text-[8px] pt-2">¡Gracias por su compra!</p>
+                  </div>
+                  <div className="flex gap-2 justify-end border-t pt-3">
+                    <button onClick={() => setCompletedSale(null)} className="px-4 py-2 border rounded-xl text-xs font-bold">Cerrar</button>
+                    <button onClick={() => window.print()} className="px-4 py-2 bg-slate-900 text-yellow-500 rounded-xl text-xs font-bold flex items-center gap-1"><Printer className="w-4 h-4" />Imprimir</button>
+                  </div>
+                </div>
+              )}
+            </Modal>
+          </div>
+        );
+      }
+
+      // --- KARDEX HISTORIAL ---
+      function Kardex() {
+        const { showToast } = useToast();
+        const [movements, setMovements] = useState([]);
+        const [products, setProducts] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        const [selectedProductId, setSelectedProductId] = useState('');
+        const [selectedType, setSelectedType] = useState('');
+
+        async function loadMovements() {
+          setLoading(true);
+          try {
+            const q = [];
+            if (selectedProductId) q.push(`productId=${selectedProductId}`);
+            if (selectedType) q.push(`type=${selectedType}`);
+            const queryStr = q.length > 0 ? `?${q.join('&')}` : '';
+            const res = await api.get(`/api/movements${queryStr}`);
+            if (res.data.success) setMovements(res.data.data);
+          } catch (e) {
+            showToast('Error cargando Kardex.', 'error');
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        async function loadSelectors() {
+          const res = await api.get('/api/products');
+          if (res.data.success) setProducts(res.data.data);
+        }
+
+        useEffect(() => { loadMovements(); }, [selectedProductId, selectedType]);
+        useEffect(() => { loadSelectors(); }, []);
+
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Kardex de Inventario</h1>
+              <p className="text-xs text-gray-400">Trazabilidad completa de las entradas y salidas de stock.</p>
+            </div>
+
+            <div className="bg-white dark:bg-ferre-dark p-4 rounded-2xl border border-slate-100 dark:border-ferre-dark-border flex flex-col sm:flex-row gap-4 items-center">
+              <select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)} className="w-full sm:flex-1 py-2.5 px-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none">
+                <option value="">Todos los Productos</option>
+                {products.map(p => (<option key={p.id} value={p.id}>{p.name} ({p.sku})</option>))}
+              </select>
+
+              <select value={selectedType} onChange={e => setSelectedType(e.target.value)} className="w-full sm:w-64 py-2.5 px-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 rounded-xl text-xs focus:outline-none">
+                <option value="">Todos los Movimientos</option>
+                <option value="INPUT">📥 Entradas</option>
+                <option value="OUTPUT">📤 Salidas</option>
+                <option value="ADJUSTMENT">🔧 Ajustes Manuales</option>
+              </select>
+            </div>
+
+            <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border rounded-2xl shadow-sm overflow-hidden">
+              {loading ? (
+                <div className="text-center py-20"><Loader2 className="w-8 h-8 text-yellow-500 animate-spin mx-auto" /></div>
+              ) : movements.length === 0 ? (
+                <p className="text-center py-20 text-gray-400 text-xs">Sin registros de movimientos.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="ferre-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>SKU</th>
+                        <th>Artículo / Producto</th>
+                        <th className="text-center">Tipo</th>
+                        <th className="text-center">Cant.</th>
+                        <th>Razón / Justificación</th>
+                        <th>Responsable</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movements.map(m => (
+                        <tr key={m.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="text-gray-450 font-semibold text-xs">{new Date(m.createdAt).toLocaleString('es-ES')}</td>
+                          <td className="font-bold font-mono">{m.product?.sku}</td>
+                          <td>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-800 dark:text-white">{m.product?.name}</span>
+                              <span className="text-[10px] text-gray-400">Stock Actual: {m.product?.stock} uds</span>
+                            </div>
+                          </td>
+                          <td className="text-center">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-black uppercase ${m.type === 'INPUT' ? 'bg-emerald-50 text-emerald-700 border border-emerald-250 dark:bg-emerald-950/40' : m.type === 'OUTPUT' ? 'bg-rose-50 text-rose-700 border border-rose-250 dark:bg-rose-950/40' : 'bg-amber-50 text-amber-700 border border-amber-250 dark:bg-amber-950/40'}`}>
+                              {m.type === 'INPUT' ? 'Entrada' : m.type === 'OUTPUT' ? 'Salida' : 'Ajuste'}
+                            </span>
+                          </td>
+                          <td className={`text-center font-extrabold ${m.type === 'INPUT' ? 'text-emerald-600' : 'text-rose-500'}`}>
+                            {m.type === 'INPUT' ? '+' : '-'}{m.quantity} uds
+                          </td>
+                          <td className="text-gray-450 text-xs truncate max-w-xs">{m.reason}</td>
+                          <td className="font-bold text-slate-850 dark:text-slate-200 text-xs">{m.user?.name}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // --- REPORTES Y AUDITORÍA ---
+      function Reports() {
+        const { showToast } = useToast();
+        const { isAdmin } = useAuth();
+        const [logs, setLogs] = useState([]);
+        const [logFilter, setLogFilter] = useState('ALL');
+        const [loading, setLoading] = useState(false);
+
+        async function loadLogs() {
+          if (!isAdmin) return;
+          setLoading(true);
+          try {
+            const res = await api.get('/api/reports/logs');
+            if (res.data.success) setLogs(res.data.data);
+          } catch (e) {
+            showToast('Error cargando logs.', 'error');
+          } finally {
+            setLoading(false);
+          }
+        }
+        useEffect(() => { loadLogs(); }, []);
+
+        const exportCSV = async (type) => {
+          showToast(`Exportando reporte de ${type}...`, 'info');
+          try {
+            let data = [];
+            let headers = [];
+            let file = `Reporte_${type}.csv`;
+
+            if (type === 'PRODUCTOS') {
+              const res = await api.get('/api/products');
+              if (res.data.success) {
+                headers = ['SKU', 'PRODUCTO', 'CATEGORIA', 'COSTO COMPRA', 'P. VENTA', 'STOCK'];
+                data = res.data.data.map(p => [p.sku, `"${p.name}"`, `"${p.category?.name}"`, p.pricePurchase, p.priceSale, p.stock]);
+              }
+            } else if (type === 'VENTAS') {
+              const res = await api.get('/api/sales');
+              if (res.data.success) {
+                headers = ['BOLETA', 'FECHA', 'CAJERO', 'DESCUENTO', 'TOTAL'];
+                data = res.data.data.map(s => [`B001-${s.id}`, new Date(s.createdAt).toLocaleString(), `"${s.user?.name}"`, s.discount, s.total]);
+              }
+            } else if (type === 'GANANCIAS') {
+              const [sales, prods] = await Promise.all([api.get('/api/sales'), api.get('/api/products')]);
+              headers = ['MES FACTURADO', 'COSTO TOTAL INVERSION COMPRA', 'INGRESOS VENTAS', 'UTILIDAD ESTIMADA'];
+              const ingresos = sales.data.data.reduce((a,c)=>a+c.total, 0);
+              const costo = sales.data.data.reduce((a,c)=>a + (c.saleDetails?.reduce((x,y)=> x + (y.quantity * (y.product?.pricePurchase || 0.00)), 0)||0), 0);
+              data = [[new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase(), costo.toFixed(2), ingresos.toFixed(2), (ingresos - costo).toFixed(2)]];
+            }
+
+            const csv = "\uFEFF" + [headers.join(','), ...data.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', file);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('¡Reporte descargado!', 'success');
+          } catch (e) {
+            showToast('Error exportando.', 'error');
+          }
+        };
+
+        const filtered = logs.filter(l => {
+          if (logFilter === 'ALL') return true;
+          return l.includes(`[${logFilter}]`);
+        });
+
+        if (!isAdmin) return <p className="text-center py-20 text-gray-400 text-xs">Acceso denegado.</p>;
+
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Reportes y Auditoría</h1>
+              <p className="text-xs text-gray-400">Estadísticas consolidadas descargables y logs forenses de base de datos.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-5 rounded-2xl flex flex-col justify-between shadow-sm">
+                <div>
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl w-fit"><Icon name="file-spreadsheet" /></div>
+                  <h4 className="font-extrabold text-sm mt-3 text-slate-800 dark:text-white">Reporte de Ventas</h4>
+                  <p className="text-[10px] text-gray-400 leading-tight mt-1">Historial recaudatorio consolidado.</p>
+                </div>
+                <button onClick={() => exportCSV('VENTAS')} className="w-full mt-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1 shadow-md cursor-pointer"><Icon name="download" className="w-4 h-4" /><span>Descargar CSV</span></button>
+              </div>
+
+              <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-5 rounded-2xl flex flex-col justify-between shadow-sm">
+                <div>
+                  <div className="p-2.5 bg-blue-500/10 text-blue-500 rounded-xl w-fit"><Icon name="file-spreadsheet" /></div>
+                  <h4 className="font-extrabold text-sm mt-3 text-slate-800 dark:text-white">Catálogo & Costos</h4>
+                  <p className="text-[10px] text-gray-400 leading-tight mt-1">Ficha completa de artículos y márgenes.</p>
+                </div>
+                <button onClick={() => exportCSV('PRODUCTOS')} className="w-full mt-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1 shadow-md cursor-pointer"><Icon name="download" className="w-4 h-4" /><span>Descargar CSV</span></button>
+              </div>
+
+              <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-5 rounded-2xl flex flex-col justify-between shadow-sm">
+                <div>
+                  <div className="p-2.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-xl w-fit"><Icon name="file-spreadsheet" /></div>
+                  <h4 className="font-extrabold text-sm mt-3 text-slate-800 dark:text-white">Rentabilidad</h4>
+                  <p className="text-[10px] text-gray-400 leading-tight mt-1">Margen de utilidad bruta mensual.</p>
+                </div>
+                <button onClick={() => exportCSV('GANANCIAS')} className="w-full mt-4 py-2 bg-yellow-500 hover:bg-yellow-450 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-md cursor-pointer"><Icon name="download" className="w-4 h-4" /><span>Descargar CSV</span></button>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border p-6 rounded-2xl shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-50 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-slate-950 text-yellow-500 rounded-lg"><Icon name="terminal" /></div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">Terminal de Logs Forenses</h3>
+                    <p className="text-[10px] text-gray-400">Auditoría del sistema y base de datos en tiempo real.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <select value={logFilter} onChange={e => setLogFilter(e.target.value)} className="py-1.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs font-bold focus:outline-none">
+                    <option value="ALL">Ver Todo</option>
+                    <option value="INFO">🟢 General</option>
+                    <option value="WARN">🟡 Advertencias</option>
+                    <option value="ERROR">🔴 Errores</option>
+                  </select>
+                  <button onClick={loadLogs} className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold transition-colors">Actualizar</button>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 text-slate-400 p-4 rounded-xl border border-slate-850 font-mono text-[10px] h-80 overflow-y-auto space-y-1 shadow-inner relative">
+                {loading && <div className="absolute inset-0 bg-slate-950/60 flex items-center justify-center"><Loader2 className="w-6 h-6 text-yellow-500 animate-spin" /></div>}
+                {filtered.map((log, index) => {
+                  let color = 'text-slate-400';
+                  if (log.includes('[ERROR]')) color = 'text-rose-500 font-bold';
+                  if (log.includes('[WARN]')) color = 'text-amber-400 font-semibold';
+                  if (log.includes('[INFO]')) color = 'text-emerald-400';
+                  return <p key={index} className={color}>{log}</p>;
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- PERSONAL REGISTER PAGE (PROTECTED ADMIN) ---
+      function Register() {
+        const { showToast } = useToast();
+        const [name, setName] = useState('');
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [role, setRole] = useState('EMPLOYEE');
+        const [loading, setLoading] = useState(false);
+
+        const handleSave = async (e) => {
+          e.preventDefault();
+          setLoading(true);
+          try {
+            const res = await api.post('/api/auth/register', { name, email, password, role });
+            if (res.data.success) {
+              showToast(res.data.message, 'success');
+              setName(''); setEmail(''); setPassword(''); setRole('EMPLOYEE');
+            } else {
+              showToast(res.data.message, 'error');
+            }
+          } catch (err) {
+            showToast('Error registrando usuario.', 'error');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        return (
+          <div className="space-y-6 max-w-lg mx-auto">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-gray-800 dark:text-white">Registrar Personal</h1>
+              <p className="text-xs text-gray-400">Crear nuevas cuentas de empleados o administradores en la base de datos.</p>
+            </div>
+
+            <div className="bg-white dark:bg-ferre-dark p-6 rounded-2xl border border-slate-100 dark:border-ferre-dark-border shadow-sm">
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Nombre Completo *</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs" placeholder="Ej. Juan Pérez" required />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Email *</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs" placeholder="empleado@freereterria.com" required />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Contraseña *</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs" placeholder="••••••••" required />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Rol *</label>
+                  <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs font-semibold">
+                    <option value="EMPLOYEE">Empleado de Caja/POS</option>
+                    <option value="ADMIN">Administrador General</option>
+                  </select>
+                </div>
+
+                <button type="submit" disabled={loading} className="w-full py-3 bg-yellow-500 text-slate-950 font-bold rounded-xl text-xs shadow hover:bg-yellow-400 active:scale-[0.98]">
+                  {loading ? 'Creando...' : 'Crear Usuario'}
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      // ==========================================
+      // CONTENEDOR LAYOUT Y COORDINADOR SPA
+      // ==========================================
+      function MainLayout() {
+        const { currentPath, navigate } = useRouter();
+        const { user, logout, isAdmin } = useAuth();
+        const { isDark, toggleTheme } = useTheme();
+
+        const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+        const [lowStockCount, setLowStockCount] = useState(0);
+
+        // Alertas de stock bajo en navbar
+        useEffect(() => {
+          async function getStats() {
+            try {
+              const res = await api.get('/api/products?lowStock=true');
+              if (res.data.success) setLowStockCount(res.data.data.length);
+            } catch (e) {}
+          }
+          getStats();
+        }, [currentPath]);
+
+        // Mapear rutas
+        const views = {
+          '#/': <Dashboard />,
+          '#/pos': <POS />,
+          '#/products': <Products />,
+          '#/categories': <Categories />,
+          '#/suppliers': <Suppliers />,
+          '#/purchases': <Purchases />,
+          '#/kardex': <Kardex />,
+          '#/reports': <Reports />,
+          '#/register': <Register />,
+        };
+
+        const activeMenuItem = currentPath || '#/';
+        const renderView = views[activeMenuItem] || <Dashboard />;
+
+        // Links Sidebar por Rol
+        const menu = [
+          { name: 'Dashboard', hash: '#/', icon: 'layout-dashboard', role: ['ADMIN', 'EMPLOYEE'] },
+          { name: 'POS Ventas', hash: '#/pos', icon: 'shopping-bag', role: ['ADMIN', 'EMPLOYEE'] },
+          { name: 'Productos', hash: '#/products', icon: 'package', role: ['ADMIN', 'EMPLOYEE'] },
+          { name: 'Categorías', hash: '#/categories', icon: 'tags', role: ['ADMIN', 'EMPLOYEE'] },
+          { name: 'Proveedores', hash: '#/suppliers', icon: 'truck', role: ['ADMIN', 'EMPLOYEE'] },
+          { name: 'Compras', hash: '#/purchases', icon: 'truck', role: ['ADMIN', 'EMPLOYEE'] },
+          { name: 'Kardex Historial', hash: '#/kardex', icon: 'history', role: ['ADMIN', 'EMPLOYEE'] },
+          { name: 'Reportes y Logs', hash: '#/reports', icon: 'file-bar-chart-2', role: ['ADMIN'] },
+          { name: 'Registrar Personal', hash: '#/register', icon: 'user-plus', role: ['ADMIN'] },
+        ];
+
+        return (
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-all duration-200">
+            {/* Sidebar */}
+            <aside className={`fixed top-0 left-0 z-30 h-screen bg-slate-900 border-r border-slate-800 text-white transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+              <div className="flex items-center justify-between px-4 py-6 border-b border-slate-800">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="p-2 bg-yellow-500 text-slate-950 rounded-xl flex items-center justify-center shadow animate-pulse"><Icon name="hammer" className="w-5 h-5" /></div>
+                  {isSidebarOpen && <span className="text-lg font-black tracking-wider uppercase bg-gradient-to-r from-white to-yellow-400 bg-clip-text text-transparent">Freereterria</span>}
+                </div>
+                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:block p-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400"><Icon name={isSidebarOpen ? 'chevron-left' : 'chevron-right'} className="w-4 h-4" /></button>
+              </div>
+
+              <nav className="flex flex-col justify-between h-[calc(100vh-80px)] px-3 py-6">
+                <ul className="space-y-1">
+                  {menu.filter(m => m.role.includes(user?.role)).map(m => (
+                    <li key={m.name}>
+                      <button
+                        onClick={() => navigate(m.hash)}
+                        className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-xs font-bold transition-all relative ${
+                          activeMenuItem === m.hash ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/10' : 'text-slate-450 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        <Icon name={m.icon} className="w-4.5 h-4.5 shrink-0" />
+                        {isSidebarOpen && <span>{m.name}</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="pt-4 border-t border-slate-800 space-y-4">
+                  {isSidebarOpen && (
+                    <div className="px-4 py-2.5 bg-slate-850 rounded-xl border border-slate-800 flex flex-col">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Operador</span>
+                      <strong className="text-xs text-slate-100 truncate mt-0.5">{user?.name}</strong>
+                      <span className="text-[9px] text-yellow-500 font-extrabold uppercase mt-1 w-fit bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">{user?.role === 'ADMIN' ? 'Admin' : 'Empleado'}</span>
+                    </div>
+                  )}
+                  <button onClick={logout} className="w-full flex items-center gap-4 px-4 py-3 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all">
+                    <Icon name="log-out" className="w-4.5 h-4.5 shrink-0" />
+                    {isSidebarOpen && <span>Cerrar Sesión</span>}
+                  </button>
+                </div>
+              </nav>
+            </aside>
+
+            {/* Contenedor Contenido */}
+            <div className={`transition-all duration-300 ${isSidebarOpen ? 'md:pl-64' : 'md:pl-20'}`}>
+              
+              {/* Navbar */}
+              <header className="sticky top-0 z-20 w-full h-20 bg-white/85 dark:bg-ferre-dark/85 border-b border-gray-150 dark:border-ferre-dark-border px-6 flex items-center justify-between backdrop-blur-md">
+                <div>
+                  <h2 className="text-sm font-black text-gray-800 dark:text-white tracking-tight uppercase">
+                    {menu.find(m => m.hash === activeMenuItem)?.name || 'Dashboard'}
+                  </h2>
+                  <p className="text-[10px] text-gray-400 font-semibold">Freereterria Monolito</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* Tema Oscuro */}
+                  <button onClick={toggleTheme} className="p-2 border rounded-xl hover:bg-gray-50 dark:hover:bg-ferre-dark-border text-gray-450 transition-colors">
+                    <Icon name={isDark ? 'sun' : 'moon'} className={`w-5 h-5 ${isDark ? 'text-amber-400' : 'text-indigo-500'}`} />
+                  </button>
+
+                  {/* Bajo Stock Alert Navbar */}
+                  <button onClick={() => navigate('#/products')} className={`p-2 border rounded-xl hover:bg-gray-50 dark:hover:bg-ferre-dark-border text-gray-450 transition-colors relative ${lowStockCount > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/20' : ''}`}>
+                    <Icon name="bell" className={`w-5 h-5 ${lowStockCount > 0 ? 'text-amber-500 animate-swing' : ''}`} />
+                    {lowStockCount > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center -translate-y-1 translate-x-1 shadow">{lowStockCount}</span>}
+                  </button>
+
+                  <div className="h-6 w-px bg-gray-150 dark:bg-ferre-dark-border"></div>
+
+                  {/* Info Usuario */}
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl"><Icon name="user" className="w-4 h-4" /></div>
+                    <div className="hidden sm:block text-left">
+                      <span className="block text-xs font-black text-gray-800 dark:text-slate-200 leading-none">{user?.name.split(' ')[0]}</span>
+                      <span className="block text-[8px] text-yellow-600 dark:text-yellow-400 font-extrabold uppercase mt-0.5">{user?.role === 'ADMIN' ? 'Administrador' : 'Empleado'}</span>
+                    </div>
+                  </div>
+                </div>
+              </header>
+
+              {/* Cuerpo del SPA */}
+              <main className="p-6 md:p-8 max-w-7xl mx-auto">{renderView}</main>
+            </div>
+          </div>
+        );
+      }
+
+      // --- APP COMPONENT COORDINATOR ---
+      function App() {
+        const { currentPath } = useRouter();
+        const { isAuthenticated, loading } = useAuth();
+
+        if (loading) return null;
+
+        const isLoginPage = currentPath === '#/login';
+
+        if (isLoginPage) {
+          return isAuthenticated ? <MainLayout /> : <Login />;
+        }
+
+        return isAuthenticated ? <MainLayout /> : <Login />;
+      }
+
+      // --- RENDERIZACIÓN ---
+      const container = document.getElementById('root');
+      const root = ReactDOM.createRoot(container);
+      root.render(
+        <RouterProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </RouterProvider>
+      );
+    </script>
+  </body>
+</html>

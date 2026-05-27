@@ -183,7 +183,7 @@ async function main() {
       description: 'Tubo de PVC resistente a altas presiones, ideal para instalaciones sanitarias de agua domiciliaria.',
       pricePurchase: 1.20,
       priceSale: 2.80,
-      stock: 4, // Stock bajo a propósito (< stockMin de 10) para disparar alertas
+      stock: 4, // Stock bajo a propósito
       stockMin: 10,
       image: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=500&auto=format&fit=crop&q=60',
       categoryName: 'Plomería y Conexiones',
@@ -216,7 +216,7 @@ async function main() {
 
     products.push(createdProd);
 
-    // Registrar un movimiento inicial de Kardex para cada producto
+    // Registrar un movimiento inicial de Kardex
     await prisma.inventoryMovement.create({
       data: {
         productId: createdProd.id,
