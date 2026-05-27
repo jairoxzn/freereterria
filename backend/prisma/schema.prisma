@@ -1,0 +1,136 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  email              String              @unique
+  password           String
+  role               String              @default("EMPLOYEE") // "ADMIN", "EMPLOYEE"
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  sales              Sale[]
+  purchases          Purchase[]
+  inventoryMovements InventoryMovement[]
+
+  @@map("users")
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("categories")
+}
+
+model Supplier {
+  id        Int        @id @default(autoincrement())
+  name      String
+  phone     String?
+  address   String?
+  email     String?
+  purchases Purchase[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("suppliers")
+}
+
+model Product {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  sku                String              @unique
+  categoryId         Int
+  category           Category            @relation(fields: [categoryId], references: [id])
+  brand              String?
+  description        String?
+  pricePurchase      Float
+  priceSale          Float
+  stock              Int
+  stockMin           Int                 @default(5)
+  image              String?
+  status             String              @default("ACTIVE") // "ACTIVE", "INACTIVE"
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  purchaseDetails    PurchaseDetail[]
+  saleDetails        SaleDetail[]
+  inventoryMovements InventoryMovement[]
+
+  @@map("products")
+}
+
+model Purchase {
+  id         Int              @id @default(autoincrement())
+  supplierId Int
+  supplier   Supplier         @relation(fields: [supplierId], references: [id])
+  userId     Int
+  user       User             @relation(fields: [userId], references: [id])
+  total      Float
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  details    PurchaseDetail[]
+
+  @@map("purchases")
+}
+
+model PurchaseDetail {
+  id             Int      @id @default(autoincrement())
+  purchaseId     Int
+  purchase       Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId      Int
+  product        Product  @relation(fields: [productId], references: [id])
+  quantity       Int
+  pricePurchase  Float
+
+  @@map("purchase_details")
+}
+
+model Sale {
+  id          Int          @id @default(autoincrement())
+  userId      Int
+  user        User         @relation(fields: [userId], references: [id])
+  total       Float
+  discount    Float        @default(0.0)
+  saleDetails SaleDetail[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("sales")
+}
+
+model SaleDetail {
+  id        Int     @id @default(autoincrement())
+  saleId    Int
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  priceSale Float
+  total     Float
+
+  @@map("sale_details")
+}
+
+model InventoryMovement {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  type      String   // "INPUT", "OUTPUT", "ADJUSTMENT"
+  quantity  Int
+  reason    String   // e.g. "VENTA POS #1", "COMPRA PROVEEDOR #2", "AJUSTE MANUAL"
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@map("inventory_movements")
+}
