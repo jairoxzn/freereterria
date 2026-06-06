@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
     
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS (Local) -->
+    <script src="/js/tailwind.js"></script>
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -52,19 +52,19 @@
       }
     </script>
     
-    <!-- Lucide Icons Web Script -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons Web Script (Local) -->
+    <script src="/js/lucide.min.js"></script>
     
-    <!-- ApexCharts CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- ApexCharts (Local) -->
+    <script src="/js/apexcharts.min.js"></script>
     
-    <!-- Canvas Confetti CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Canvas Confetti (Local) -->
+    <script src="/js/confetti.min.js"></script>
 
-    <!-- React, ReactDOM, Babel CDNs -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- React, ReactDOM, Babel (Local) -->
+    <script src="/js/react.min.js"></script>
+    <script src="/js/react-dom.min.js"></script>
+    <script src="/js/babel.min.js"></script>
 
     <title>Freereterria - Sistema Profesional de Inventario & POS</title>
     
@@ -102,7 +102,8 @@
         body * {
           visibility: hidden;
         }
-        #print-receipt-ticket, #print-receipt-ticket * {
+        #print-receipt-ticket, #print-receipt-ticket *,
+        #print-kardex-report, #print-kardex-report * {
           visibility: visible;
         }
         #print-receipt-ticket {
@@ -111,25 +112,99 @@
           top: 0;
           width: 100%;
         }
+        #print-kardex-report {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          color: #000000 !important;
+          background: #ffffff !important;
+        }
       }
     </style>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
     <div id="root"></div>
 
+    <!-- Detector Visual de Errores en Tiempo de Ejecución -->
+    <script>
+      // Silenciar avisos molestos de desarrollo de CDNs en la consola
+      (function() {
+        var originalWarn = console.warn;
+        console.warn = function() {
+          var msg = arguments[0];
+          if (typeof msg === 'string' && (msg.indexOf('cdn.tailwindcss.com') !== -1 || msg.indexOf('in-browser Babel transformer') !== -1)) {
+            return;
+          }
+          originalWarn.apply(console, arguments);
+        };
+      })();
+
+      window.onerror = function(message, source, lineno, colno, error) {
+        var div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.height = '100%';
+        div.style.zIndex = '999999';
+        div.style.background = '#0f172a';
+        div.style.color = '#f87171';
+        div.style.padding = '40px';
+        div.style.fontFamily = 'monospace';
+        div.style.fontSize = '14px';
+        div.style.lineHeight = '1.6';
+        div.style.overflow = 'auto';
+        div.innerHTML = '<div style="max-width: 800px; margin: 0 auto; background: #1e293b; padding: 30px; border-radius: 20px; border: 2px solid #ef4444; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">' +
+          '<h1 style="color: #ef4444; font-size: 24px; font-weight: 900; margin-bottom: 20px; border-bottom: 2px solid #ef4444; padding-bottom: 10px;">❌ ERROR CRÍTICO DETECTADO</h1>' +
+          '<p><strong>Mensaje:</strong> <span style="color: #ffffff;">' + message + '</span></p>' +
+          '<p><strong>Archivo:</strong> <span style="color: #ffffff;">' + source + '</span></p>' +
+          '<p><strong>Línea/Col:</strong> <span style="color: #ffffff;">' + lineno + ' : ' + colno + '</span></p>' +
+          (error && error.stack ? '<br><strong>Pila de Llamadas (Stack Trace):</strong><pre style="background: #0f172a; padding: 15px; border-radius: 10px; color: #a7f3d0; overflow-x: auto; font-size: 12px; margin-top: 10px;">' + error.stack + '</pre>' : '') +
+          '<br><button onclick="window.location.reload(true)" style="background: #ef4444; color: #ffffff; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px;">Recargar Página (Limpiar Caché)</button>' +
+          '</div>';
+        document.body.appendChild(div);
+        return false;
+      };
+    </script>
+
     <!-- CÓDIGO FRONTEND REACT SPA -->
     <script type="text/babel">
       const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
 
-      // 1. COMPONENTE AUXILIAR PARA RENDERIZAR ICONOS LUCIDE DINÁMICAMENTE
+      // 1. COMPONENTE AUXILIAR PARA RENDERIZAR ICONOS LUCIDE DINÁMICAMENTE SIN ROMPER EL DOM DE REACT
       function Icon({ name, className = "w-5 h-5", strokeWidth = 2 }) {
+        const wrapperRef = useRef(null);
+
         useEffect(() => {
-          if (window.lucide) {
-            window.lucide.createIcons();
+          if (window.lucide && wrapperRef.current) {
+            // Crear el elemento <i> temporal para Lucide
+            const i = document.createElement('i');
+            i.setAttribute('data-lucide', name);
+            i.className = className;
+            i.style.strokeWidth = strokeWidth;
+
+            // Limpiar y montar el elemento dentro del wrapper (fuera del control de React VDOM)
+            wrapperRef.current.innerHTML = '';
+            wrapperRef.current.appendChild(i);
+
+            // Convertir el <i> en <svg> usando Lucide
+            window.lucide.createIcons({
+              node: wrapperRef.current
+            });
           }
-        }, [name]);
-        return <i data-lucide={name} className={className} style={{ strokeWidth }}></i>;
+        }, [name, className, strokeWidth]);
+
+        return <span ref={wrapperRef} className="inline-flex items-center justify-center shrink-0"></span>;
       }
+
+      // COMPONENTES DE ICONOS CONVERSORES DE COMPATIBILIDAD
+      function Search(props) { return <Icon name="search" {...props} />; }
+      function Minus(props) { return <Icon name="minus" {...props} />; }
+      function Plus(props) { return <Icon name="plus" {...props} />; }
+      function Hammer(props) { return <Icon name="hammer" {...props} />; }
+      function Printer(props) { return <Icon name="printer" {...props} />; }
+      function Loader2(props) { return <Icon name="loader-2" {...props} />; }
 
       // 2. CONTEXTO GLOBAL DE ALERTAS TOAST
       const ToastContext = createContext();
@@ -1728,6 +1803,13 @@
         useEffect(() => { loadMovements(); }, [selectedProductId, selectedType]);
         useEffect(() => { loadSelectors(); }, []);
 
+        const exportPDF = () => {
+          showToast('Preparando reporte PDF del Kardex...', 'info');
+          setTimeout(() => {
+            window.print();
+          }, 300);
+        };
+
         return (
           <div className="space-y-6">
             <div>
@@ -1741,12 +1823,17 @@
                 {products.map(p => (<option key={p.id} value={p.id}>{p.name} ({p.sku})</option>))}
               </select>
 
-              <select value={selectedType} onChange={e => setSelectedType(e.target.value)} className="w-full sm:w-64 py-2.5 px-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 rounded-xl text-xs focus:outline-none">
+              <select value={selectedType} onChange={e => setSelectedType(e.target.value)} className="w-full sm:w-48 py-2.5 px-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 rounded-xl text-xs focus:outline-none">
                 <option value="">Todos los Movimientos</option>
                 <option value="INPUT">📥 Entradas</option>
                 <option value="OUTPUT">📤 Salidas</option>
                 <option value="ADJUSTMENT">🔧 Ajustes Manuales</option>
               </select>
+
+              <button onClick={exportPDF} disabled={movements.length === 0} className="w-full sm:w-auto px-4 py-2.5 bg-yellow-500 hover:bg-yellow-450 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer">
+                <Icon name="file-text" className="w-4 h-4" />
+                <span>Exportar PDF</span>
+              </button>
             </div>
 
             <div className="bg-white dark:bg-ferre-dark border border-slate-100 dark:border-ferre-dark-border rounded-2xl shadow-sm overflow-hidden">
@@ -1795,6 +1882,68 @@
                   </table>
                 </div>
               )}
+            </div>
+
+            {/* Contenedor Oculto en Pantalla - Visible únicamente al Imprimir en PDF */}
+            <div id="print-kardex-report" className="hidden font-sans p-6 space-y-6">
+              <div className="flex justify-between items-center border-b pb-4">
+                <div>
+                  <h1 className="text-xl font-extrabold text-slate-900">REPORTE AUDITORÍA DE KARDEX</h1>
+                  <p className="text-xs text-slate-500">Sistema de Inventario Freereterria Monolito</p>
+                  <p className="text-[10px] text-slate-400">Fecha de Generación: {new Date().toLocaleString('es-ES')}</p>
+                </div>
+                <div className="text-right">
+                  <h2 className="text-sm font-bold text-slate-800">Ferretería Freereterria</h2>
+                  <p className="text-[10px] text-slate-400">R.U.C. 20492817401</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-lg border text-xs space-y-1">
+                <p><strong>Filtros Aplicados:</strong></p>
+                <p>📦 <strong>Producto:</strong> {selectedProductId ? (products.find(p => p.id === parseInt(selectedProductId))?.name || 'ID: ' + selectedProductId) : 'Todos los Productos'}</p>
+                <p>🔧 <strong>Movimientos:</strong> {selectedType === 'INPUT' ? '📥 Solo Entradas' : selectedType === 'OUTPUT' ? '📤 Solo Salidas' : selectedType === 'ADJUSTMENT' ? '🔧 Solo Ajustes' : 'Todos los Movimientos'}</p>
+                <p>🔢 <strong>Total Registros:</strong> {movements.length} movimientos</p>
+              </div>
+
+              <table className="w-full text-left text-xs border-collapse border border-slate-300">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+                    <th className="p-2 border-r border-slate-300">Fecha</th>
+                    <th className="p-2 border-r border-slate-300">SKU</th>
+                    <th className="p-2 border-r border-slate-300">Producto / Artículo</th>
+                    <th className="p-2 border-r border-slate-300 text-center">Tipo</th>
+                    <th className="p-2 border-r border-slate-300 text-center">Cant.</th>
+                    <th className="p-2 border-r border-slate-300">Justificación</th>
+                    <th className="p-2">Responsable</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movements.map(m => (
+                    <tr key={m.id} className="border-b border-slate-200 text-[11px]">
+                      <td className="p-2 border-r border-slate-300">{new Date(m.createdAt).toLocaleString('es-ES')}</td>
+                      <td className="p-2 border-r border-slate-300 font-mono font-bold">{m.product?.sku}</td>
+                      <td className="p-2 border-r border-slate-300 font-semibold">{m.product?.name}</td>
+                      <td className="p-2 border-r border-slate-300 text-center font-bold">
+                        {m.type === 'INPUT' ? 'ENTRADA' : m.type === 'OUTPUT' ? 'SALIDA' : 'AJUSTE'}
+                      </td>
+                      <td className="p-2 border-r border-slate-300 text-center font-extrabold">
+                        {m.type === 'INPUT' ? '+' : '-'}{m.quantity} uds
+                      </td>
+                      <td className="p-2 border-r border-slate-300">{m.reason}</td>
+                      <td className="p-2 font-semibold">{m.user?.name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="pt-10 flex justify-between text-center text-xs">
+                <div className="w-48 border-t pt-2">
+                  <p className="font-bold">Firma Responsable Almacén</p>
+                </div>
+                <div className="w-48 border-t pt-2">
+                  <p className="font-bold">Firma Gerente General</p>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -2021,6 +2170,42 @@
         const [isSidebarOpen, setIsSidebarOpen] = useState(true);
         const [lowStockCount, setLowStockCount] = useState(0);
 
+        const [allProducts, setAllProducts] = useState([]);
+        const [searchNavbar, setSearchNavbar] = useState('');
+        const [navbarSuggestions, setNavbarSuggestions] = useState([]);
+        const [activeNavbarProduct, setActiveNavbarProduct] = useState(null);
+
+        // Cargar productos para búsqueda predictiva
+        useEffect(() => {
+          async function getProducts() {
+            try {
+              const res = await api.get('/api/products');
+              if (res.data.success) setAllProducts(res.data.data);
+            } catch (e) {}
+          }
+          getProducts();
+        }, [currentPath]);
+
+        const handleNavbarSearchChange = (val) => {
+          setSearchNavbar(val);
+          if (!val.trim()) {
+            setNavbarSuggestions([]);
+            return;
+          }
+          const filtered = allProducts.filter(p => 
+            p.name.toLowerCase().includes(val.toLowerCase()) || 
+            p.sku.toLowerCase().includes(val.toLowerCase()) ||
+            (p.brand && p.brand.toLowerCase().includes(val.toLowerCase()))
+          ).slice(0, 5);
+          setNavbarSuggestions(filtered);
+        };
+
+        const handleSelectSuggestion = (prod) => {
+          setSearchNavbar('');
+          setNavbarSuggestions([]);
+          setActiveNavbarProduct(prod);
+        };
+
         // Alertas de stock bajo en navbar
         useEffect(() => {
           async function getStats() {
@@ -2118,6 +2303,89 @@
                   <p className="text-[10px] text-gray-400 font-semibold">Freereterria Monolito</p>
                 </div>
 
+                {/* Buscador Global Predictivo */}
+                <div className="relative flex-1 max-w-md mx-6 hidden md:block">
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 dark:text-gray-500" />
+                    <input
+                      type="text"
+                      value={searchNavbar}
+                      onChange={e => handleNavbarSearchChange(e.target.value)}
+                      onBlur={() => setTimeout(() => setNavbarSuggestions([]), 200)}
+                      className="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-ferre-dark-border rounded-xl text-xs focus:outline-none focus:border-yellow-500 dark:focus:border-yellow-550 transition-colors"
+                      placeholder="Buscar SKU, nombre o marca..."
+                    />
+                    {searchNavbar && (
+                      <button 
+                        onClick={() => { setSearchNavbar(''); setNavbarSuggestions([]); }} 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-450 hover:text-gray-600 dark:hover:text-slate-200"
+                      >
+                        <Icon name="x" className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown de Sugerencias */}
+                  {navbarSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-150 dark:border-ferre-dark-border rounded-xl shadow-2xl overflow-hidden z-50 max-h-72 overflow-y-auto">
+                      <div className="px-3.5 py-1.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-850 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                        Sugerencias de Productos ({navbarSuggestions.length})
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-850">
+                        {navbarSuggestions.map(prod => {
+                          const isLowStock = prod.stock <= prod.stockMin;
+                          const isOutOfStock = prod.stock === 0;
+                          
+                          let badgeColor = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+                          let badgeText = `Stock: ${prod.stock}`;
+                          if (isOutOfStock) {
+                            badgeColor = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20";
+                            badgeText = "Agotado";
+                          } else if (isLowStock) {
+                            badgeColor = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+                            badgeText = `Stock Bajo: ${prod.stock}`;
+                          }
+
+                          return (
+                            <div
+                              key={prod.id}
+                              onMouseDown={() => handleSelectSuggestion(prod)}
+                              className="px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-850/50 cursor-pointer transition-colors flex items-center justify-between gap-3 text-xs"
+                            >
+                              <div className="flex flex-col min-w-0">
+                                <strong className="text-gray-800 dark:text-slate-200 font-semibold truncate">{prod.name}</strong>
+                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+                                  <span>SKU: {prod.sku}</span>
+                                  {prod.brand && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{prod.brand}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2.5 shrink-0">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                                  {badgeText}
+                                </span>
+                                <strong className="text-gray-900 dark:text-white font-extrabold">
+                                  S/. {prod.priceSale.toFixed(2)}
+                                </strong>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {searchNavbar.trim() && navbarSuggestions.length === 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-150 dark:border-ferre-dark-border rounded-xl shadow-2xl p-4 text-center z-50 text-xs text-gray-450">
+                      No se encontraron resultados para "{searchNavbar}"
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-4">
                   {/* Tema Oscuro */}
                   <button onClick={toggleTheme} className="p-2 border rounded-xl hover:bg-gray-50 dark:hover:bg-ferre-dark-border text-gray-450 transition-colors">
@@ -2146,6 +2414,167 @@
               {/* Cuerpo del SPA */}
               <main className="p-6 md:p-8 max-w-7xl mx-auto">{renderView}</main>
             </div>
+
+            {/* Modal de Ficha Rápida de Producto */}
+            <Modal
+              isOpen={!!activeNavbarProduct}
+              onClose={() => setActiveNavbarProduct(null)}
+              title="🔍 Ficha Rápida de Producto"
+              size="lg"
+            >
+              {activeNavbarProduct && (
+                <div className="space-y-6 text-slate-850 dark:text-slate-200">
+                  {/* Header Title with SKU & Brand */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-ferre-dark-border">
+                    <div>
+                      <h4 className="text-xl font-black text-gray-900 dark:text-white leading-tight">
+                        {activeNavbarProduct.name}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1.5 text-xs">
+                        <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-ferre-dark-border flex items-center gap-1.5">
+                          SKU: {activeNavbarProduct.sku}
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(activeNavbarProduct.sku);
+                              showToast('¡SKU copiado!', 'success');
+                            }}
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+                            title="Copiar SKU"
+                          >
+                            <Icon name="copy" className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                        {activeNavbarProduct.brand && (
+                          <span className="font-bold text-yellow-650 dark:text-yellow-400 uppercase tracking-wide bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded">
+                            {activeNavbarProduct.brand}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3-Column Metrics Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Stock Card */}
+                    {(() => {
+                      const isLowStock = activeNavbarProduct.stock <= activeNavbarProduct.stockMin;
+                      const isOutOfStock = activeNavbarProduct.stock === 0;
+
+                      let stockBg = "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40";
+                      let stockText = "text-emerald-700 dark:text-emerald-300";
+                      let stockSubText = "Stock saludable";
+                      let stockIcon = "check-circle";
+
+                      if (isOutOfStock) {
+                        stockBg = "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40";
+                        stockText = "text-rose-700 dark:text-rose-300";
+                        stockSubText = "Sin existencias";
+                        stockIcon = "alert-circle";
+                      } else if (isLowStock) {
+                        stockBg = "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40";
+                        stockText = "text-amber-700 dark:text-amber-300";
+                        stockSubText = "Reabastecer pronto";
+                        stockIcon = "alert-triangle";
+                      }
+
+                      return (
+                        <div className={`p-4 rounded-2xl border ${stockBg} flex flex-col justify-between shadow-sm`}>
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Existencias</span>
+                            <Icon name={stockIcon} className={`w-5 h-5 ${stockText}`} />
+                          </div>
+                          <div className="mt-2">
+                            <h5 className={`text-2xl font-black ${stockText}`}>{activeNavbarProduct.stock}</h5>
+                            <p className="text-[10px] text-slate-400 mt-0.5 leading-none">
+                              {stockSubText} (Mín: {activeNavbarProduct.stockMin})
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Venta Card */}
+                    <div className="p-4 rounded-2xl border border-slate-100 dark:border-ferre-dark-border bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between shadow-sm">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Precio de Venta</span>
+                        <Icon name="tag" className="w-5 h-5 text-yellow-500" />
+                      </div>
+                      <div className="mt-2">
+                        <h5 className="text-2xl font-black text-slate-800 dark:text-white">
+                          S/. {activeNavbarProduct.priceSale.toFixed(2)}
+                        </h5>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-none">Venta al público</p>
+                      </div>
+                    </div>
+
+                    {/* Costo / Margen Card (Admin vs Employee) */}
+                    <div className="p-4 rounded-2xl border border-slate-100 dark:border-ferre-dark-border bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between shadow-sm">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Precio Costo & Margen</span>
+                        <Icon name={isAdmin ? "trending-up" : "lock"} className={`w-5 h-5 ${isAdmin ? "text-indigo-500" : "text-slate-450"}`} />
+                      </div>
+                      <div className="mt-2">
+                        {isAdmin ? (
+                          <>
+                            <h5 className="text-2xl font-black text-slate-800 dark:text-white">
+                              S/. {activeNavbarProduct.pricePurchase.toFixed(2)}
+                            </h5>
+                            <p className="text-[10px] text-indigo-550 font-semibold mt-0.5 leading-none">
+                              Margen: {activeNavbarProduct.pricePurchase > 0 ? (((activeNavbarProduct.priceSale - activeNavbarProduct.pricePurchase) / activeNavbarProduct.pricePurchase) * 100).toFixed(1) : '0.0'}%
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <h5 className="text-sm font-bold text-slate-400 italic">Restringido</h5>
+                            <p className="text-[10px] text-slate-405 mt-0.5 leading-none">Solo Administradores</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* General Info & Description */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100 dark:border-ferre-dark-border text-sm">
+                    <div className="space-y-3">
+                      <h6 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider">Ficha Técnica</h6>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50 dark:border-slate-850">
+                          <span className="text-slate-450">Categoría:</span>
+                          <strong className="text-slate-700 dark:text-slate-200">{activeNavbarProduct.category?.name || 'General'}</strong>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50 dark:border-slate-850">
+                          <span className="text-slate-450">Marca:</span>
+                          <strong className="text-slate-700 dark:text-slate-200">{activeNavbarProduct.brand || 'Genérico'}</strong>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50 dark:border-slate-850">
+                          <span className="text-slate-455">Estado:</span>
+                          <strong className={`font-black ${activeNavbarProduct.status === 'ACTIVE' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {activeNavbarProduct.status === 'ACTIVE' ? 'ACTIVO' : 'INACTIVO'}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h6 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider">Descripción del Artículo</h6>
+                      <p className="text-xs text-slate-500 dark:text-slate-450 leading-relaxed bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
+                        {activeNavbarProduct.description || 'Este artículo no registra descripción detallada en la base de datos de Freereterria.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions / Close */}
+                  <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-ferre-dark-border">
+                    <button
+                      onClick={() => setActiveNavbarProduct(null)}
+                      className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-md shadow-yellow-500/10 active:scale-[0.98]"
+                    >
+                      Entendido
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Modal>
           </div>
         );
       }

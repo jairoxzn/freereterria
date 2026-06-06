@@ -21,6 +21,14 @@
       "dest": "server.js"
     },
     {
+      "src": "/(js|css|images|assets)/(.*)",
+      "dest": "/public/$1/$2"
+    },
+    {
+      "src": "/(favicon\\.ico|robots\\.txt)",
+      "dest": "/public/$1"
+    },
+    {
       "src": "/public/(.*)",
       "dest": "/public/$1"
     },

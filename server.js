@@ -90,6 +90,14 @@ app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Desactivar caché para desarrollo y asegurar que siempre se sirva el index.html más reciente
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // Servir la carpeta estática "public" para el frontend SPA
 app.use(express.static(path.join(__dirname, 'public')));
 
